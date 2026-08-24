@@ -29,6 +29,8 @@ pub struct StoreMetrics {
     pub circuit_breaker_state: GaugeVec,
     pub pool_active_connections: GaugeVec,
     pub pool_idle_connections: GaugeVec,
+    pub health_check_status: GaugeVec,
+    pub health_check_duration_seconds: HistogramVec,
 }
 
 impl StoreMetrics {
@@ -108,6 +110,21 @@ impl StoreMetrics {
             registry
         )?;
 
+        let health_check_status = register_gauge_vec_with_registry!(
+            Opts::new("goy_store_health_check_status", "Health check status (1=healthy, 0=unhealthy, 2=degraded)"),
+            &["contract", "backend"],
+            registry
+        )?;
+
+        let health_check_duration_seconds = register_histogram_vec_with_registry!(
+            HistogramOpts::new(
+                "goy_store_health_check_duration_seconds",
+                "Duration of health check operations in seconds"
+            ),
+            &["contract", "backend"],
+            registry
+        )?;
+
         Ok(Self {
             kv_operation_duration_seconds,
             relational_query_duration_seconds,
@@ -119,6 +136,8 @@ impl StoreMetrics {
             circuit_breaker_state,
             pool_active_connections,
             pool_idle_connections,
+            health_check_status,
+            health_check_duration_seconds,
         })
     }
 }
@@ -234,6 +253,26 @@ impl KvStore for InstrumentedKvStore {
         }
         res
     }
+
+    async fn is_healthy(&self) -> Result<crate::health::HealthStatus> {
+        let start = Instant::now();
+        let status = self.inner.is_healthy().await?;
+        let duration = start.elapsed().as_secs_f64();
+        self.metrics
+            .health_check_duration_seconds
+            .with_label_values(&["kv", &self.backend])
+            .observe(duration);
+        let val = match status.state {
+            crate::health::HealthState::Healthy => 1.0,
+            crate::health::HealthState::Degraded => 2.0,
+            crate::health::HealthState::Unhealthy => 0.0,
+        };
+        self.metrics
+            .health_check_status
+            .with_label_values(&["kv", &self.backend])
+            .set(val);
+        Ok(status)
+    }
 }
 
 pub struct InstrumentedRelationalStore {
@@ -303,6 +342,26 @@ impl RelationalStore for InstrumentedRelationalStore {
                 .inc();
         }
         res
+    }
+
+    async fn is_healthy(&self) -> Result<crate::health::HealthStatus> {
+        let start = Instant::now();
+        let status = self.inner.is_healthy().await?;
+        let duration = start.elapsed().as_secs_f64();
+        self.metrics
+            .health_check_duration_seconds
+            .with_label_values(&["relational", &self.backend])
+            .observe(duration);
+        let val = match status.state {
+            crate::health::HealthState::Healthy => 1.0,
+            crate::health::HealthState::Degraded => 2.0,
+            crate::health::HealthState::Unhealthy => 0.0,
+        };
+        self.metrics
+            .health_check_status
+            .with_label_values(&["relational", &self.backend])
+            .set(val);
+        Ok(status)
     }
 }
 
@@ -431,6 +490,26 @@ impl SortedSetStore for InstrumentedSortedSetStore {
         }
         res
     }
+
+    async fn is_healthy(&self) -> Result<crate::health::HealthStatus> {
+        let start = Instant::now();
+        let status = self.inner.is_healthy().await?;
+        let duration = start.elapsed().as_secs_f64();
+        self.metrics
+            .health_check_duration_seconds
+            .with_label_values(&["sorted_set", &self.backend])
+            .observe(duration);
+        let val = match status.state {
+            crate::health::HealthState::Healthy => 1.0,
+            crate::health::HealthState::Degraded => 2.0,
+            crate::health::HealthState::Unhealthy => 0.0,
+        };
+        self.metrics
+            .health_check_status
+            .with_label_values(&["sorted_set", &self.backend])
+            .set(val);
+        Ok(status)
+    }
 }
 
 pub struct InstrumentedBlobStore {
@@ -535,6 +614,26 @@ impl BlobStore for InstrumentedBlobStore {
         }
         res
     }
+
+    async fn is_healthy(&self) -> Result<crate::health::HealthStatus> {
+        let start = Instant::now();
+        let status = self.inner.is_healthy().await?;
+        let duration = start.elapsed().as_secs_f64();
+        self.metrics
+            .health_check_duration_seconds
+            .with_label_values(&["blob", &self.backend])
+            .observe(duration);
+        let val = match status.state {
+            crate::health::HealthState::Healthy => 1.0,
+            crate::health::HealthState::Degraded => 2.0,
+            crate::health::HealthState::Unhealthy => 0.0,
+        };
+        self.metrics
+            .health_check_status
+            .with_label_values(&["blob", &self.backend])
+            .set(val);
+        Ok(status)
+    }
 }
 
 pub struct InstrumentedPubSubStore {
@@ -604,6 +703,26 @@ impl PubSubStore for InstrumentedPubSubStore {
                 .inc();
         }
         res
+    }
+
+    async fn is_healthy(&self) -> Result<crate::health::HealthStatus> {
+        let start = Instant::now();
+        let status = self.inner.is_healthy().await?;
+        let duration = start.elapsed().as_secs_f64();
+        self.metrics
+            .health_check_duration_seconds
+            .with_label_values(&["pubsub", &self.backend])
+            .observe(duration);
+        let val = match status.state {
+            crate::health::HealthState::Healthy => 1.0,
+            crate::health::HealthState::Degraded => 2.0,
+            crate::health::HealthState::Unhealthy => 0.0,
+        };
+        self.metrics
+            .health_check_status
+            .with_label_values(&["pubsub", &self.backend])
+            .set(val);
+        Ok(status)
     }
 }
 

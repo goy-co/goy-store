@@ -95,6 +95,32 @@ func (r *RedisKVStore) Client() redis.UniversalClient {
 	return r.client
 }
 
+// IsHealthy executes a PING check on Redis with a timeout.
+func (r *RedisKVStore) IsHealthy(ctx context.Context) (*HealthStatus, error) {
+	start := time.Now()
+	pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	err := r.client.Ping(pingCtx).Err()
+	latency := time.Since(start).Milliseconds()
+	if err != nil {
+		return &HealthStatus{
+			Contract:  "kv",
+			Backend:   "redis",
+			State:     HealthUnhealthy,
+			Message:   err.Error(),
+			LatencyMS: latency,
+		}, nil
+	}
+
+	return &HealthStatus{
+		Contract:  "kv",
+		Backend:   "redis",
+		State:     HealthHealthy,
+		LatencyMS: latency,
+	}, nil
+}
+
 // RedisSortedSetStore implements the SortedSetStore contract using Redis.
 type RedisSortedSetStore struct {
 	client redis.UniversalClient
@@ -189,6 +215,32 @@ func (s *RedisSortedSetStore) Score(ctx context.Context, set string, member stri
 		return nil, err
 	}
 	return &score, nil
+}
+
+// IsHealthy executes a PING check on Redis with a timeout.
+func (s *RedisSortedSetStore) IsHealthy(ctx context.Context) (*HealthStatus, error) {
+	start := time.Now()
+	pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	err := s.client.Ping(pingCtx).Err()
+	latency := time.Since(start).Milliseconds()
+	if err != nil {
+		return &HealthStatus{
+			Contract:  "sorted_set",
+			Backend:   "redis",
+			State:     HealthUnhealthy,
+			Message:   err.Error(),
+			LatencyMS: latency,
+		}, nil
+	}
+
+	return &HealthStatus{
+		Contract:  "sorted_set",
+		Backend:   "redis",
+		State:     HealthHealthy,
+		LatencyMS: latency,
+	}, nil
 }
 
 // RedisPubSubStore implements the PubSubStore contract using Redis.
@@ -291,4 +343,30 @@ func (p *RedisPubSubStore) Unsubscribe(ctx context.Context, channels []string) e
 		}
 	}
 	return nil
+}
+
+// IsHealthy executes a PING check on Redis with a timeout.
+func (p *RedisPubSubStore) IsHealthy(ctx context.Context) (*HealthStatus, error) {
+	start := time.Now()
+	pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	err := p.client.Ping(pingCtx).Err()
+	latency := time.Since(start).Milliseconds()
+	if err != nil {
+		return &HealthStatus{
+			Contract:  "pubsub",
+			Backend:   "redis",
+			State:     HealthUnhealthy,
+			Message:   err.Error(),
+			LatencyMS: latency,
+		}, nil
+	}
+
+	return &HealthStatus{
+		Contract:  "pubsub",
+		Backend:   "redis",
+		State:     HealthHealthy,
+		LatencyMS: latency,
+	}, nil
 }

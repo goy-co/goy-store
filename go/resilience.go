@@ -245,6 +245,10 @@ func (r *resilientKVStore) SetIfNotExists(ctx context.Context, key string, value
 	})
 }
 
+func (r *resilientKVStore) IsHealthy(ctx context.Context) (*HealthStatus, error) {
+	return r.inner.IsHealthy(ctx)
+}
+
 // --- Resilient Relational Store Wrapper ---
 
 type resilientRelationalStore struct {
@@ -283,6 +287,10 @@ func (r *resilientRelationalStore) Migrate(ctx context.Context, migrations []Mig
 		return struct{}{}, r.inner.Migrate(c, migrations)
 	})
 	return err
+}
+
+func (r *resilientRelationalStore) IsHealthy(ctx context.Context) (*HealthStatus, error) {
+	return r.inner.IsHealthy(ctx)
 }
 
 // --- Resilient Sorted Set Store Wrapper ---
@@ -335,6 +343,10 @@ func (r *resilientSortedSetStore) Score(ctx context.Context, set string, member 
 	return ExecuteWithResilience(r.executor, ctx, "score", func(c context.Context) (*float64, error) {
 		return r.inner.Score(c, set, member)
 	})
+}
+
+func (r *resilientSortedSetStore) IsHealthy(ctx context.Context) (*HealthStatus, error) {
+	return r.inner.IsHealthy(ctx)
 }
 
 // --- Resilient Blob Store Wrapper ---
@@ -390,6 +402,10 @@ func (r *resilientBlobStore) PresignURL(ctx context.Context, key string, expiry 
 	})
 }
 
+func (r *resilientBlobStore) IsHealthy(ctx context.Context) (*HealthStatus, error) {
+	return r.inner.IsHealthy(ctx)
+}
+
 // --- Resilient PubSub Store Wrapper ---
 
 type resilientPubSubStore struct {
@@ -417,4 +433,8 @@ func (r *resilientPubSubStore) Subscribe(ctx context.Context, channels []string)
 
 func (r *resilientPubSubStore) Unsubscribe(ctx context.Context, channels []string) error {
 	return r.inner.Unsubscribe(ctx, channels)
+}
+
+func (r *resilientPubSubStore) IsHealthy(ctx context.Context) (*HealthStatus, error) {
+	return r.inner.IsHealthy(ctx)
 }

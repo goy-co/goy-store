@@ -222,6 +222,10 @@ impl KvStore for ResilientKvStore {
         let v = value.to_vec();
         self.executor.execute("set_if_not_exists", || self.inner.set_if_not_exists(&k, &v, ttl)).await
     }
+
+    async fn is_healthy(&self) -> Result<crate::health::HealthStatus> {
+        self.inner.is_healthy().await
+    }
 }
 
 pub struct ResilientRelationalStore {
@@ -260,6 +264,10 @@ impl RelationalStore for ResilientRelationalStore {
     async fn migrate(&self, migrations: &[Migration]) -> Result<()> {
         let m = migrations.to_vec();
         self.executor.execute("migrate", || self.inner.migrate(&m)).await
+    }
+
+    async fn is_healthy(&self) -> Result<crate::health::HealthStatus> {
+        self.inner.is_healthy().await
     }
 }
 
@@ -316,6 +324,10 @@ impl SortedSetStore for ResilientSortedSetStore {
         let m = member.to_string();
         self.executor.execute("score", || self.inner.score(&s, &m)).await
     }
+
+    async fn is_healthy(&self) -> Result<crate::health::HealthStatus> {
+        self.inner.is_healthy().await
+    }
 }
 
 pub struct ResilientBlobStore {
@@ -365,6 +377,10 @@ impl BlobStore for ResilientBlobStore {
         let k = key.to_string();
         self.executor.execute("presign_url", || self.inner.presign_url(&k, expiry)).await
     }
+
+    async fn is_healthy(&self) -> Result<crate::health::HealthStatus> {
+        self.inner.is_healthy().await
+    }
 }
 
 pub struct ResilientPubSubStore {
@@ -402,6 +418,10 @@ impl PubSubStore for ResilientPubSubStore {
         let c: Vec<String> = channels.iter().map(|s| s.to_string()).collect();
         let c_refs: Vec<&str> = c.iter().map(|s| s.as_str()).collect();
         self.inner.unsubscribe(&c_refs).await
+    }
+
+    async fn is_healthy(&self) -> Result<crate::health::HealthStatus> {
+        self.inner.is_healthy().await
     }
 }
 

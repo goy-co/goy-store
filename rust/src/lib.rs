@@ -12,6 +12,7 @@ pub mod blob;
 pub mod config;
 pub mod metrics;
 pub mod resilience;
+pub mod health;
 
 pub use kv::KvStore;
 pub use relational::RelationalStore;
@@ -20,6 +21,7 @@ pub use pubsub::PubSubStore;
 pub use blob::BlobStore;
 pub use config::StoreConfig;
 
+pub use health::{ConsolidatedHealth, HealthState, HealthStatus};
 pub use metrics::StoreMetrics;
 pub use resilience::{CircuitBreaker, ResilientKvStore, ResilientRelationalStore, ResilientSortedSetStore, ResilientBlobStore, ResilientPubSubStore};
 
@@ -179,6 +181,27 @@ impl GoyStore {
             metrics,
         })
     }
+
+    /// Checks the health of all configured persistence contracts.
+    pub async fn health_check(&self) -> ConsolidatedHealth {
+        let (kv_res, rel_res, ss_res, ps_res, blob_res) = tokio::join!(
+            self.kv.is_healthy(),
+            self.relational.is_healthy(),
+            self.sorted_set.is_healthy(),
+            self.pubsub.is_healthy(),
+            self.blob.is_healthy(),
+        );
+
+        let statuses = vec![
+            kv_res.unwrap_or_else(|e| HealthStatus::unhealthy("kv", "unknown", &e.to_string(), 0)),
+            rel_res.unwrap_or_else(|e| HealthStatus::unhealthy("relational", "unknown", &e.to_string(), 0)),
+            ss_res.unwrap_or_else(|e| HealthStatus::unhealthy("sorted_set", "unknown", &e.to_string(), 0)),
+            ps_res.unwrap_or_else(|e| HealthStatus::unhealthy("pubsub", "unknown", &e.to_string(), 0)),
+            blob_res.unwrap_or_else(|e| HealthStatus::unhealthy("blob", "unknown", &e.to_string(), 0)),
+        ];
+
+        ConsolidatedHealth::from_statuses(statuses)
+    }
 }
 
 #[cfg(test)]
@@ -186,7 +209,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_store_creation() {
+    async fn test_store_creation_and_health_check() {
         let config = StoreConfig::default();
         let store = GoyStore::from_config(&config).await.unwrap();
         
@@ -194,5 +217,10 @@ mod tests {
         store.kv.set("test_key", b"test_value", None).await.unwrap();
         let result = store.kv.get("test_key").await.unwrap();
         assert_eq!(result, Some(b"test_value".to_vec()));
+
+        // Test Health Check
+        let health = store.health_check().await;
+        assert_eq!(health.state, HealthState::Healthy);
+        assert_eq!(health.contracts.len(), 5);
     }
 }

@@ -3,6 +3,7 @@ package goystore
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -126,6 +127,32 @@ func (p *PostgresRelationalStore) Migrate(ctx context.Context, migrations []Migr
 	}
 
 	return nil
+}
+
+// IsHealthy checks PostgreSQL connectivity with a ping / SELECT 1.
+func (p *PostgresRelationalStore) IsHealthy(ctx context.Context) (*HealthStatus, error) {
+	start := time.Now()
+	pingCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	err := p.pool.Ping(pingCtx)
+	latency := time.Since(start).Milliseconds()
+	if err != nil {
+		return &HealthStatus{
+			Contract:  "relational",
+			Backend:   "postgres",
+			State:     HealthUnhealthy,
+			Message:   err.Error(),
+			LatencyMS: latency,
+		}, nil
+	}
+
+	return &HealthStatus{
+		Contract:  "relational",
+		Backend:   "postgres",
+		State:     HealthHealthy,
+		LatencyMS: latency,
+	}, nil
 }
 
 // --- Wrappers ---

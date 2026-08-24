@@ -16,6 +16,7 @@ pub trait KvStore: Send + Sync {
     async fn delete(&self, key: &str) -> Result<()>;
     async fn exists(&self, key: &str) -> Result<bool>;
     async fn set_if_not_exists(&self, key: &str, value: &[u8], ttl: Option<Duration>) -> Result<bool>;
+    async fn is_healthy(&self) -> Result<crate::health::HealthStatus>;
 }
 
 /// In-memory implementation of KvStore for testing and local development.
@@ -56,6 +57,10 @@ impl KvStore for MemoryKvStore {
             data.insert(key.to_string(), value.to_vec());
             Ok(true)
         }
+    }
+
+    async fn is_healthy(&self) -> Result<crate::health::HealthStatus> {
+        Ok(crate::health::HealthStatus::healthy("kv", "memory", 0))
     }
 }
 
@@ -139,6 +144,31 @@ impl KvStore for RedisKvStore {
         } else {
             let set: bool = redis::AsyncCommands::set_nx(&mut conn, key, value).await?;
             Ok(set)
+        }
+    }
+
+    async fn is_healthy(&self) -> Result<crate::health::HealthStatus> {
+        let start = std::time::Instant::now();
+        let mut conn = self.conn.clone();
+        let ping_fut = async move {
+            let cmd = redis::cmd("PING");
+            cmd.query_async::<_, String>(&mut conn).await
+        };
+        let timeout_fut = tokio::time::timeout(std::time::Duration::from_secs(2), ping_fut);
+
+        match timeout_fut.await {
+            Ok(Ok(_)) => {
+                let latency = start.elapsed().as_millis() as u64;
+                Ok(crate::health::HealthStatus::healthy("kv", "redis", latency))
+            }
+            Ok(Err(e)) => {
+                let latency = start.elapsed().as_millis() as u64;
+                Ok(crate::health::HealthStatus::unhealthy("kv", "redis", &e.to_string(), latency))
+            }
+            Err(_) => {
+                let latency = start.elapsed().as_millis() as u64;
+                Ok(crate::health::HealthStatus::unhealthy("kv", "redis", "health check timed out (2s)", latency))
+            }
         }
     }
 }

@@ -428,3 +428,32 @@ func TestResilientExecutorRetry(t *testing.T) {
 		t.Fatalf("expected 1 retry recorded, got %v", retries)
 	}
 }
+
+func TestHealthCheck(t *testing.T) {
+	cfg := DefaultConfig()
+	store, err := NewStore(cfg)
+	if err != nil {
+		t.Fatalf("failed to initialize store: %v", err)
+	}
+
+	ctx := context.Background()
+	health := store.HealthCheck(ctx)
+
+	if health.State != HealthHealthy {
+		t.Fatalf("expected healthy state, got %s", health.State)
+	}
+
+	if len(health.Contracts) != 5 {
+		t.Fatalf("expected 5 contracts in health report, got %d", len(health.Contracts))
+	}
+
+	for _, name := range []string{"kv", "relational", "sorted_set", "pubsub", "blob"} {
+		status, ok := health.Contracts[name]
+		if !ok {
+			t.Fatalf("expected contract %s in health report", name)
+		}
+		if status.State != HealthHealthy {
+			t.Fatalf("expected %s to be healthy, got %s", name, status.State)
+		}
+	}
+}

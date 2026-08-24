@@ -36,6 +36,27 @@ func (s *MemoryStore) PubSub() PubSubStore         { return s.pubsub }
 func (s *MemoryStore) Blob() BlobStore             { return s.blob }
 func (s *MemoryStore) Metrics() *Metrics           { return s.metrics }
 
+func (s *MemoryStore) HealthCheck(ctx context.Context) ConsolidatedHealth {
+	kvH, _ := s.kv.IsHealthy(ctx)
+	relH, _ := s.relational.IsHealthy(ctx)
+	ssH, _ := s.sortedSet.IsHealthy(ctx)
+	psH, _ := s.pubsub.IsHealthy(ctx)
+	blobH, _ := s.blob.IsHealthy(ctx)
+
+	contracts := map[string]HealthStatus{
+		"kv":         *kvH,
+		"relational": *relH,
+		"sorted_set": *ssH,
+		"pubsub":     *psH,
+		"blob":       *blobH,
+	}
+
+	return ConsolidatedHealth{
+		State:     HealthHealthy,
+		Contracts: contracts,
+	}
+}
+
 // --- KV Store ---
 
 type memoryKV struct {
@@ -81,6 +102,15 @@ func (m *memoryKV) SetIfNotExists(_ context.Context, key string, value []byte, _
 	return true, nil
 }
 
+func (m *memoryKV) IsHealthy(_ context.Context) (*HealthStatus, error) {
+	return &HealthStatus{
+		Contract:  "kv",
+		Backend:   "memory",
+		State:     HealthHealthy,
+		LatencyMS: 0,
+	}, nil
+}
+
 // --- Relational Store ---
 
 type memoryRelational struct{}
@@ -99,6 +129,15 @@ func (m *memoryRelational) Transaction(_ context.Context, _ func(Tx) error) erro
 
 func (m *memoryRelational) Migrate(_ context.Context, _ []Migration) error {
 	return nil
+}
+
+func (m *memoryRelational) IsHealthy(_ context.Context) (*HealthStatus, error) {
+	return &HealthStatus{
+		Contract:  "relational",
+		Backend:   "memory",
+		State:     HealthHealthy,
+		LatencyMS: 0,
+	}, nil
 }
 
 // --- Sorted Set Store ---
@@ -186,6 +225,15 @@ func (m *memorySortedSet) Score(_ context.Context, set string, member string) (*
 	return nil, nil
 }
 
+func (m *memorySortedSet) IsHealthy(_ context.Context) (*HealthStatus, error) {
+	return &HealthStatus{
+		Contract:  "sorted_set",
+		Backend:   "memory",
+		State:     HealthHealthy,
+		LatencyMS: 0,
+	}, nil
+}
+
 // --- Pub/Sub Store ---
 
 type memoryPubSub struct {
@@ -243,6 +291,15 @@ func (m *memoryPubSub) Unsubscribe(_ context.Context, channels []string) error {
 	return nil
 }
 
+func (m *memoryPubSub) IsHealthy(_ context.Context) (*HealthStatus, error) {
+	return &HealthStatus{
+		Contract:  "pubsub",
+		Backend:   "memory",
+		State:     HealthHealthy,
+		LatencyMS: 0,
+	}, nil
+}
+
 // --- Blob Store ---
 
 type blobData struct {
@@ -298,4 +355,13 @@ func (m *memoryBlob) List(_ context.Context, prefix *string) ([]string, error) {
 
 func (m *memoryBlob) PresignURL(_ context.Context, key string, _ time.Duration) (string, error) {
 	return "mock://blob-store/" + key, nil
+}
+
+func (m *memoryBlob) IsHealthy(_ context.Context) (*HealthStatus, error) {
+	return &HealthStatus{
+		Contract:  "blob",
+		Backend:   "memory",
+		State:     HealthHealthy,
+		LatencyMS: 0,
+	}, nil
 }

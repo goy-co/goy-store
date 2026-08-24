@@ -21,6 +21,8 @@ type Metrics struct {
 	CircuitBreakerState        *prometheus.GaugeVec
 	PoolActiveConnections      *prometheus.GaugeVec
 	PoolIdleConnections        *prometheus.GaugeVec
+	HealthCheckStatus          *prometheus.GaugeVec
+	HealthCheckDuration        *prometheus.HistogramVec
 }
 
 var (
@@ -109,6 +111,21 @@ func RegisterMetrics(reg prometheus.Registerer) *Metrics {
 			},
 			[]string{"backend"},
 		),
+		HealthCheckStatus: factory.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "goy_store_health_check_status",
+				Help: "Health check status (1=healthy, 0=unhealthy, 2=degraded)",
+			},
+			[]string{"contract", "backend"},
+		),
+		HealthCheckDuration: factory.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name:    "goy_store_health_check_duration_seconds",
+				Help:    "Duration of health check operations in seconds",
+				Buckets: prometheus.DefBuckets,
+			},
+			[]string{"contract", "backend"},
+		),
 	}
 }
 
@@ -185,6 +202,27 @@ func (i *instrumentedKVStore) SetIfNotExists(ctx context.Context, key string, va
 	return set, err
 }
 
+func (i *instrumentedKVStore) IsHealthy(ctx context.Context) (*HealthStatus, error) {
+	start := time.Now()
+	status, err := i.inner.IsHealthy(ctx)
+	dur := time.Since(start).Seconds()
+	i.metrics.HealthCheckDuration.WithLabelValues("kv", i.backend).Observe(dur)
+
+	if status != nil {
+		val := 0.0
+		switch status.State {
+		case HealthHealthy:
+			val = 1.0
+		case HealthDegraded:
+			val = 2.0
+		case HealthUnhealthy:
+			val = 0.0
+		}
+		i.metrics.HealthCheckStatus.WithLabelValues("kv", i.backend).Set(val)
+	}
+	return status, err
+}
+
 // --- Instrumented Relational Store ---
 
 type instrumentedRelationalStore struct {
@@ -238,6 +276,27 @@ func (i *instrumentedRelationalStore) Migrate(ctx context.Context, migrations []
 		i.metrics.ErrorsTotal.WithLabelValues("relational", "migrate", i.backend, "error").Inc()
 	}
 	return err
+}
+
+func (i *instrumentedRelationalStore) IsHealthy(ctx context.Context) (*HealthStatus, error) {
+	start := time.Now()
+	status, err := i.inner.IsHealthy(ctx)
+	dur := time.Since(start).Seconds()
+	i.metrics.HealthCheckDuration.WithLabelValues("relational", i.backend).Observe(dur)
+
+	if status != nil {
+		val := 0.0
+		switch status.State {
+		case HealthHealthy:
+			val = 1.0
+		case HealthDegraded:
+			val = 2.0
+		case HealthUnhealthy:
+			val = 0.0
+		}
+		i.metrics.HealthCheckStatus.WithLabelValues("relational", i.backend).Set(val)
+	}
+	return status, err
 }
 
 // --- Instrumented Sorted Set Store ---
@@ -315,6 +374,27 @@ func (i *instrumentedSortedSetStore) Score(ctx context.Context, set string, memb
 	return score, err
 }
 
+func (i *instrumentedSortedSetStore) IsHealthy(ctx context.Context) (*HealthStatus, error) {
+	start := time.Now()
+	status, err := i.inner.IsHealthy(ctx)
+	dur := time.Since(start).Seconds()
+	i.metrics.HealthCheckDuration.WithLabelValues("sorted_set", i.backend).Observe(dur)
+
+	if status != nil {
+		val := 0.0
+		switch status.State {
+		case HealthHealthy:
+			val = 1.0
+		case HealthDegraded:
+			val = 2.0
+		case HealthUnhealthy:
+			val = 0.0
+		}
+		i.metrics.HealthCheckStatus.WithLabelValues("sorted_set", i.backend).Set(val)
+	}
+	return status, err
+}
+
 // --- Instrumented Blob Store ---
 
 type instrumentedBlobStore struct {
@@ -380,6 +460,27 @@ func (i *instrumentedBlobStore) PresignURL(ctx context.Context, key string, expi
 	return url, err
 }
 
+func (i *instrumentedBlobStore) IsHealthy(ctx context.Context) (*HealthStatus, error) {
+	start := time.Now()
+	status, err := i.inner.IsHealthy(ctx)
+	dur := time.Since(start).Seconds()
+	i.metrics.HealthCheckDuration.WithLabelValues("blob", i.backend).Observe(dur)
+
+	if status != nil {
+		val := 0.0
+		switch status.State {
+		case HealthHealthy:
+			val = 1.0
+		case HealthDegraded:
+			val = 2.0
+		case HealthUnhealthy:
+			val = 0.0
+		}
+		i.metrics.HealthCheckStatus.WithLabelValues("blob", i.backend).Set(val)
+	}
+	return status, err
+}
+
 // --- Instrumented PubSub Store ---
 
 type instrumentedPubSubStore struct {
@@ -423,4 +524,25 @@ func (i *instrumentedPubSubStore) Unsubscribe(ctx context.Context, channels []st
 		i.metrics.ErrorsTotal.WithLabelValues("pubsub", "unsubscribe", i.backend, "error").Inc()
 	}
 	return err
+}
+
+func (i *instrumentedPubSubStore) IsHealthy(ctx context.Context) (*HealthStatus, error) {
+	start := time.Now()
+	status, err := i.inner.IsHealthy(ctx)
+	dur := time.Since(start).Seconds()
+	i.metrics.HealthCheckDuration.WithLabelValues("pubsub", i.backend).Observe(dur)
+
+	if status != nil {
+		val := 0.0
+		switch status.State {
+		case HealthHealthy:
+			val = 1.0
+		case HealthDegraded:
+			val = 2.0
+		case HealthUnhealthy:
+			val = 0.0
+		}
+		i.metrics.HealthCheckStatus.WithLabelValues("pubsub", i.backend).Set(val)
+	}
+	return status, err
 }

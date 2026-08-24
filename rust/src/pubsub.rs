@@ -21,6 +21,7 @@ pub trait PubSubStore: Send + Sync {
     async fn publish(&self, channel: &str, message: &[u8]) -> Result<()>;
     async fn subscribe(&self, channels: &[&str]) -> Result<tokio_stream::wrappers::BroadcastStream<Message>>;
     async fn unsubscribe(&self, channels: &[&str]) -> Result<()>;
+    async fn is_healthy(&self) -> Result<crate::health::HealthStatus>;
 }
 
 /// In-memory implementation of PubSubStore for testing and local development.
@@ -69,6 +70,10 @@ impl PubSubStore for MemoryPubSubStore {
         // In a broadcast channel, unsubscribing is handled by dropping the receiver.
         // We might clean up empty channels here in a more sophisticated implementation.
         Ok(())
+    }
+
+    async fn is_healthy(&self) -> Result<crate::health::HealthStatus> {
+        Ok(crate::health::HealthStatus::healthy("pubsub", "memory", 0))
     }
 }
 
@@ -159,6 +164,31 @@ impl PubSubStore for RedisPubSubStore {
             chans.remove(ch);
         }
         Ok(())
+    }
+
+    async fn is_healthy(&self) -> Result<crate::health::HealthStatus> {
+        let start = std::time::Instant::now();
+        let mut conn = self.conn.clone();
+        let ping_fut = async move {
+            let cmd = redis::cmd("PING");
+            cmd.query_async::<_, String>(&mut conn).await
+        };
+        let timeout_fut = tokio::time::timeout(std::time::Duration::from_secs(2), ping_fut);
+
+        match timeout_fut.await {
+            Ok(Ok(_)) => {
+                let latency = start.elapsed().as_millis() as u64;
+                Ok(crate::health::HealthStatus::healthy("pubsub", "redis", latency))
+            }
+            Ok(Err(e)) => {
+                let latency = start.elapsed().as_millis() as u64;
+                Ok(crate::health::HealthStatus::unhealthy("pubsub", "redis", &e.to_string(), latency))
+            }
+            Err(_) => {
+                let latency = start.elapsed().as_millis() as u64;
+                Ok(crate::health::HealthStatus::unhealthy("pubsub", "redis", "health check timed out (2s)", latency))
+            }
+        }
     }
 }
 

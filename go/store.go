@@ -10,6 +10,30 @@ import (
 	"time"
 )
 
+// HealthState represents the health status of a store.
+type HealthState string
+
+const (
+	HealthHealthy   HealthState = "healthy"
+	HealthDegraded  HealthState = "degraded"
+	HealthUnhealthy HealthState = "unhealthy"
+)
+
+// HealthStatus represents the health of a specific contract backend.
+type HealthStatus struct {
+	Contract  string      `json:"contract"`
+	Backend   string      `json:"backend"`
+	State     HealthState `json:"state"`
+	Message   string      `json:"message,omitempty"`
+	LatencyMS int64       `json:"latency_ms"`
+}
+
+// ConsolidatedHealth aggregates the health status across all contracts.
+type ConsolidatedHealth struct {
+	State     HealthState             `json:"state"`
+	Contracts map[string]HealthStatus `json:"contracts"`
+}
+
 // GoyStore is the main interface aggregating all persistence contracts.
 type GoyStore interface {
 	KV() KVStore
@@ -18,6 +42,7 @@ type GoyStore interface {
 	PubSub() PubSubStore
 	Blob() BlobStore
 	Metrics() *Metrics
+	HealthCheck(ctx context.Context) ConsolidatedHealth
 }
 
 // KVStore defines the contract for ephemeral key-value operations.
@@ -27,6 +52,7 @@ type KVStore interface {
 	Delete(ctx context.Context, key string) error
 	Exists(ctx context.Context, key string) (bool, error)
 	SetIfNotExists(ctx context.Context, key string, value []byte, ttl *time.Duration) (bool, error)
+	IsHealthy(ctx context.Context) (*HealthStatus, error)
 }
 
 // RelationalStore defines the contract for transactional CRUD operations.
@@ -35,6 +61,7 @@ type RelationalStore interface {
 	Execute(ctx context.Context, sql string, params []any) (int64, error)
 	Transaction(ctx context.Context, fn func(Tx) error) error
 	Migrate(ctx context.Context, migrations []Migration) error
+	IsHealthy(ctx context.Context) (*HealthStatus, error)
 }
 
 // Rows represents the result of a relational query.
@@ -45,20 +72,20 @@ type Rows interface {
 	Close() error
 }
 
-// Tx represents a relational transaction.
+// Tx represents an active relational transaction.
 type Tx interface {
 	Query(ctx context.Context, sql string, params []any) (Rows, error)
 	Execute(ctx context.Context, sql string, params []any) (int64, error)
 }
 
-// Migration represents a database migration.
+// Migration represents a single database migration step.
 type Migration struct {
 	Version string
 	UpSQL   string
 	DownSQL string
 }
 
-// SortedSetStore defines the contract for temporal range queries.
+// SortedSetStore defines the contract for score-ordered sets.
 type SortedSetStore interface {
 	Add(ctx context.Context, set string, member string, score float64) error
 	Remove(ctx context.Context, set string, member string) error
@@ -66,6 +93,7 @@ type SortedSetStore interface {
 	Count(ctx context.Context, set string) (int64, error)
 	RemoveRange(ctx context.Context, set string, min, max float64) (int64, error)
 	Score(ctx context.Context, set string, member string) (*float64, error)
+	IsHealthy(ctx context.Context) (*HealthStatus, error)
 }
 
 // ScoredMember represents a member and its score in a sorted set.
@@ -79,6 +107,7 @@ type PubSubStore interface {
 	Publish(ctx context.Context, channel string, message []byte) error
 	Subscribe(ctx context.Context, channels []string) (<-chan Message, error)
 	Unsubscribe(ctx context.Context, channels []string) error
+	IsHealthy(ctx context.Context) (*HealthStatus, error)
 }
 
 // Message represents a pub/sub message.
@@ -95,6 +124,7 @@ type BlobStore interface {
 	Delete(ctx context.Context, key string) error
 	List(ctx context.Context, prefix *string) ([]string, error)
 	PresignURL(ctx context.Context, key string, expiry time.Duration) (string, error)
+	IsHealthy(ctx context.Context) (*HealthStatus, error)
 }
 
 // Metadata represents blob metadata.

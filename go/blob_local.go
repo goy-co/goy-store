@@ -191,3 +191,36 @@ func (s *LocalBlobStore) PresignURL(ctx context.Context, key string, _ time.Dura
 	}
 	return "file://" + filepath.ToSlash(abs), nil
 }
+
+// IsHealthy checks if the base directory is writable.
+func (s *LocalBlobStore) IsHealthy(ctx context.Context) (*HealthStatus, error) {
+	start := time.Now()
+	if err := os.MkdirAll(s.basePath, 0755); err != nil {
+		return &HealthStatus{
+			Contract:  "blob",
+			Backend:   "local",
+			State:     HealthUnhealthy,
+			Message:   fmt.Sprintf("cannot create base dir: %v", err),
+			LatencyMS: time.Since(start).Milliseconds(),
+		}, nil
+	}
+
+	probeFile := filepath.Join(s.basePath, ".health_check_probe")
+	if err := os.WriteFile(probeFile, []byte("ok"), 0644); err != nil {
+		return &HealthStatus{
+			Contract:  "blob",
+			Backend:   "local",
+			State:     HealthUnhealthy,
+			Message:   fmt.Sprintf("cannot write to base dir: %v", err),
+			LatencyMS: time.Since(start).Milliseconds(),
+		}, nil
+	}
+	_ = os.Remove(probeFile)
+
+	return &HealthStatus{
+		Contract:  "blob",
+		Backend:   "local",
+		State:     HealthHealthy,
+		LatencyMS: time.Since(start).Milliseconds(),
+	}, nil
+}

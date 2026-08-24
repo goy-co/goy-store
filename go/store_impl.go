@@ -21,6 +21,75 @@ func (s *defaultStore) PubSub() PubSubStore         { return s.pubsub }
 func (s *defaultStore) Blob() BlobStore             { return s.blob }
 func (s *defaultStore) Metrics() *Metrics           { return s.metrics }
 
+func (s *defaultStore) HealthCheck(ctx context.Context) ConsolidatedHealth {
+	type checkResult struct {
+		contract string
+		status   *HealthStatus
+	}
+
+	results := make(chan checkResult, 5)
+
+	go func() {
+		status, err := s.kv.IsHealthy(ctx)
+		if err != nil && status == nil {
+			status = &HealthStatus{Contract: "kv", Backend: "unknown", State: HealthUnhealthy, Message: err.Error()}
+		}
+		results <- checkResult{contract: "kv", status: status}
+	}()
+
+	go func() {
+		status, err := s.relational.IsHealthy(ctx)
+		if err != nil && status == nil {
+			status = &HealthStatus{Contract: "relational", Backend: "unknown", State: HealthUnhealthy, Message: err.Error()}
+		}
+		results <- checkResult{contract: "relational", status: status}
+	}()
+
+	go func() {
+		status, err := s.sortedSet.IsHealthy(ctx)
+		if err != nil && status == nil {
+			status = &HealthStatus{Contract: "sorted_set", Backend: "unknown", State: HealthUnhealthy, Message: err.Error()}
+		}
+		results <- checkResult{contract: "sorted_set", status: status}
+	}()
+
+	go func() {
+		status, err := s.pubsub.IsHealthy(ctx)
+		if err != nil && status == nil {
+			status = &HealthStatus{Contract: "pubsub", Backend: "unknown", State: HealthUnhealthy, Message: err.Error()}
+		}
+		results <- checkResult{contract: "pubsub", status: status}
+	}()
+
+	go func() {
+		status, err := s.blob.IsHealthy(ctx)
+		if err != nil && status == nil {
+			status = &HealthStatus{Contract: "blob", Backend: "unknown", State: HealthUnhealthy, Message: err.Error()}
+		}
+		results <- checkResult{contract: "blob", status: status}
+	}()
+
+	contracts := make(map[string]HealthStatus, 5)
+	consolidatedState := HealthHealthy
+
+	for i := 0; i < 5; i++ {
+		res := <-results
+		if res.status != nil {
+			contracts[res.contract] = *res.status
+			if res.status.State == HealthUnhealthy {
+				consolidatedState = HealthUnhealthy
+			} else if res.status.State == HealthDegraded && consolidatedState != HealthUnhealthy {
+				consolidatedState = HealthDegraded
+			}
+		}
+	}
+
+	return ConsolidatedHealth{
+		State:     consolidatedState,
+		Contracts: contracts,
+	}
+}
+
 // NewStore creates a new GoyStore instance from the provided configuration with default metrics.
 func NewStore(cfg *Config) (GoyStore, error) {
 	return NewStoreWithMetrics(cfg, DefaultMetrics())

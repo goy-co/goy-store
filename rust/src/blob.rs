@@ -25,6 +25,7 @@ pub trait BlobStore: Send + Sync {
     async fn delete(&self, key: &str) -> Result<()>;
     async fn list(&self, prefix: Option<&str>) -> Result<Vec<String>>;
     async fn presign_url(&self, key: &str, expiry: Duration) -> Result<String>;
+    async fn is_healthy(&self) -> Result<crate::health::HealthStatus>;
 }
 
 #[derive(Clone)]
@@ -77,8 +78,11 @@ impl BlobStore for MemoryBlobStore {
     }
 
     async fn presign_url(&self, key: &str, _expiry: Duration) -> Result<String> {
-        // In-memory implementation returns a mock URL
-        Ok(format!("mock://blob-store/{}", key))
+        Ok(format!("memory://{}", key))
+    }
+
+    async fn is_healthy(&self) -> Result<crate::health::HealthStatus> {
+        Ok(crate::health::HealthStatus::healthy("blob", "memory", 0))
     }
 }
 
@@ -203,6 +207,28 @@ impl BlobStore for LocalBlobStore {
         let blob_path = self.resolve_path(key)?;
         let abs_path = std::fs::canonicalize(&blob_path).unwrap_or(blob_path);
         Ok(format!("file://{}", abs_path.to_string_lossy()))
+    }
+
+    async fn is_healthy(&self) -> Result<crate::health::HealthStatus> {
+        let start = std::time::Instant::now();
+        let health_file = self.base_path.join(".health_check_probe");
+        match tokio::fs::create_dir_all(&self.base_path).await {
+            Ok(_) => match tokio::fs::write(&health_file, b"ok").await {
+                Ok(_) => {
+                    let _ = tokio::fs::remove_file(&health_file).await;
+                    let latency = start.elapsed().as_millis() as u64;
+                    Ok(crate::health::HealthStatus::healthy("blob", "local", latency))
+                }
+                Err(e) => {
+                    let latency = start.elapsed().as_millis() as u64;
+                    Ok(crate::health::HealthStatus::unhealthy("blob", "local", &format!("cannot write to blob dir: {}", e), latency))
+                }
+            },
+            Err(e) => {
+                let latency = start.elapsed().as_millis() as u64;
+                Ok(crate::health::HealthStatus::unhealthy("blob", "local", &format!("cannot create blob dir: {}", e), latency))
+            }
+        }
     }
 }
 

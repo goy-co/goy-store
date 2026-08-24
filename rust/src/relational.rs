@@ -31,6 +31,7 @@ pub trait RelationalStore: Send + Sync {
     async fn query(&self, sql: &str, params: &[Param]) -> Result<Rows>;
     async fn execute(&self, sql: &str, params: &[Param]) -> Result<u64>;
     async fn migrate(&self, migrations: &[Migration]) -> Result<()>;
+    async fn is_healthy(&self) -> Result<crate::health::HealthStatus>;
 }
 
 /// In-memory implementation of RelationalStore for testing and local development.
@@ -52,6 +53,10 @@ impl RelationalStore for MemoryRelationalStore {
 
     async fn migrate(&self, _migrations: &[Migration]) -> Result<()> {
         Ok(())
+    }
+
+    async fn is_healthy(&self) -> Result<crate::health::HealthStatus> {
+        Ok(crate::health::HealthStatus::healthy("relational", "memory", 0))
     }
 }
 
@@ -144,5 +149,28 @@ impl RelationalStore for PostgresRelationalStore {
         }
 
         Ok(())
+    }
+
+    async fn is_healthy(&self) -> Result<crate::health::HealthStatus> {
+        let start = std::time::Instant::now();
+        let timeout_fut = tokio::time::timeout(
+            std::time::Duration::from_secs(3),
+            sqlx::query("SELECT 1").execute(&self.pool),
+        );
+
+        match timeout_fut.await {
+            Ok(Ok(_)) => {
+                let latency = start.elapsed().as_millis() as u64;
+                Ok(crate::health::HealthStatus::healthy("relational", "postgres", latency))
+            }
+            Ok(Err(e)) => {
+                let latency = start.elapsed().as_millis() as u64;
+                Ok(crate::health::HealthStatus::unhealthy("relational", "postgres", &e.to_string(), latency))
+            }
+            Err(_) => {
+                let latency = start.elapsed().as_millis() as u64;
+                Ok(crate::health::HealthStatus::unhealthy("relational", "postgres", "health check timed out (3s)", latency))
+            }
+        }
     }
 }

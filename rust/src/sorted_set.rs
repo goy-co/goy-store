@@ -23,6 +23,7 @@ pub trait SortedSetStore: Send + Sync {
     async fn count(&self, set: &str) -> Result<u64>;
     async fn remove_range(&self, set: &str, min: f64, max: f64) -> Result<u64>;
     async fn score(&self, set: &str, member: &str) -> Result<Option<f64>>;
+    async fn is_healthy(&self) -> Result<crate::health::HealthStatus>;
 }
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, PartialOrd)]
@@ -152,6 +153,10 @@ impl SortedSetStore for MemorySortedSetStore {
             Ok(None)
         }
     }
+
+    async fn is_healthy(&self) -> Result<crate::health::HealthStatus> {
+        Ok(crate::health::HealthStatus::healthy("sorted_set", "memory", 0))
+    }
 }
 
 #[cfg(feature = "redis-backend")]
@@ -227,6 +232,31 @@ impl SortedSetStore for RedisSortedSetStore {
         let mut conn = self.conn.clone();
         let score: Option<f64> = redis::AsyncCommands::zscore(&mut conn, set, member).await?;
         Ok(score)
+    }
+
+    async fn is_healthy(&self) -> Result<crate::health::HealthStatus> {
+        let start = std::time::Instant::now();
+        let mut conn = self.conn.clone();
+        let ping_fut = async move {
+            let cmd = redis::cmd("PING");
+            cmd.query_async::<_, String>(&mut conn).await
+        };
+        let timeout_fut = tokio::time::timeout(std::time::Duration::from_secs(2), ping_fut);
+
+        match timeout_fut.await {
+            Ok(Ok(_)) => {
+                let latency = start.elapsed().as_millis() as u64;
+                Ok(crate::health::HealthStatus::healthy("sorted_set", "redis", latency))
+            }
+            Ok(Err(e)) => {
+                let latency = start.elapsed().as_millis() as u64;
+                Ok(crate::health::HealthStatus::unhealthy("sorted_set", "redis", &e.to_string(), latency))
+            }
+            Err(_) => {
+                let latency = start.elapsed().as_millis() as u64;
+                Ok(crate::health::HealthStatus::unhealthy("sorted_set", "redis", "health check timed out (2s)", latency))
+            }
+        }
     }
 }
 
