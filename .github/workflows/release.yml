@@ -1,0 +1,169 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag to release (e.g. v0.1.0-alpha)'
+        required: true
+        type: string
+      dry_run:
+        description: 'Dry run release without publishing artifacts'
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+jobs:
+  validate:
+    name: Validate CI (Unit & E2E Tests)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache-dependency-path: go/go.sum
+
+      - name: Check Rust Formatting & Lints
+        run: |
+          cd rust
+          cargo fmt -- --check
+          cargo clippy --all-features -- -D warnings
+
+      - name: Check Go Vet
+        run: |
+          cd go
+          go vet ./...
+
+      - name: Run Unit Tests
+        run: |
+          cd rust && cargo test
+          cd ../go && go test -v ./...
+
+      - name: Start Test Infrastructure
+        run: docker compose up -d --wait
+
+      - name: Run E2E Integration Tests
+        run: |
+          make test-e2e-rust
+          make test-e2e-go
+
+      - name: Stop Test Infrastructure
+        if: always()
+        run: docker compose down -v
+
+  publish-rust:
+    name: Package & Publish Rust Crate
+    needs: validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Verify Package
+        run: |
+          cd rust
+          cargo package --all-features
+
+      - name: Publish to Crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN || secrets.CRATES_IO_TOKEN }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          cd rust
+          if [ "$DRY_RUN" = "true" ] || [ -z "$CARGO_REGISTRY_TOKEN" ]; then
+            echo "Running cargo publish in dry-run mode..."
+            cargo publish --dry-run --all-features
+          else
+            echo "Publishing crate..."
+            cargo publish --all-features --token "$CARGO_REGISTRY_TOKEN"
+          fi
+
+  publish-go:
+    name: Verify Go Module
+    needs: validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Verify Go Module Integrity
+        run: |
+          cd go
+          go mod verify
+
+  create-release:
+    name: Create GitHub Release
+    needs: [publish-rust, publish-go]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine Release Tag
+        id: vars
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.version }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          
+          # Check if pre-release
+          if [[ "$TAG" == *"-alpha"* || "$TAG" == *"-beta"* || "$TAG" == *"-rc"* ]]; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate Release Changelog with git-cliff
+        uses: orhun/git-cliff-action@v3
+        with:
+          config: cliff.toml
+          args: --latest --strip header
+        env:
+          OUTPUT: RELEASE_CHANGELOG.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.tag }}
+          name: Release ${{ steps.vars.outputs.tag }}
+          body_path: RELEASE_CHANGELOG.md
+          prerelease: ${{ steps.vars.outputs.is_prerelease == 'true' }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

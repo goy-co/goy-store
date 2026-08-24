@@ -243,6 +243,26 @@ git config core.hooksPath .githooks
 
 ---
 
+## 🚢 Release Process
+
+Releases are fully automated via GitHub Actions [`.github/workflows/release.yml`](.github/workflows/release.yml):
+
+1. Commit all changes using [Conventional Commits](CONTRIBUTING.md).
+2. Create and push a semantic tag:
+   ```bash
+   git tag -a v0.1.0-alpha -m "release: goy-store v0.1.0-alpha"
+   git push origin v0.1.0-alpha
+   ```
+3. The workflow automatically:
+   - Validates all unit and E2E integration tests against real Docker containers.
+   - Packages and verifies the Rust crate and Go module.
+   - Generates release notes from commits via `git-cliff`.
+   - Creates the GitHub Release with pre-release status handled automatically.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines and git workflow details.
+
+---
+
 ## ⚠️ Limitations of `v0.1.0-alpha`
 
 - `goy-store` is released as a standalone foundation. Platform services (`goy-node`, `goy-relay`) will be migrated to consume `goy-store` in subsequent releases.
