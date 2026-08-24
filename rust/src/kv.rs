@@ -3,10 +3,10 @@
 //! Basic key-value operations with optional TTL. Used for sessions, caches, tokens, temporary state.
 
 use anyhow::Result;
-use std::time::Duration;
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::RwLock;
 
 #[async_trait]
@@ -15,7 +15,12 @@ pub trait KvStore: Send + Sync {
     async fn set(&self, key: &str, value: &[u8], ttl: Option<Duration>) -> Result<()>;
     async fn delete(&self, key: &str) -> Result<()>;
     async fn exists(&self, key: &str) -> Result<bool>;
-    async fn set_if_not_exists(&self, key: &str, value: &[u8], ttl: Option<Duration>) -> Result<bool>;
+    async fn set_if_not_exists(
+        &self,
+        key: &str,
+        value: &[u8],
+        ttl: Option<Duration>,
+    ) -> Result<bool>;
     async fn is_healthy(&self) -> Result<crate::health::HealthStatus>;
 }
 
@@ -49,7 +54,12 @@ impl KvStore for MemoryKvStore {
         Ok(data.contains_key(key))
     }
 
-    async fn set_if_not_exists(&self, key: &str, value: &[u8], _ttl: Option<Duration>) -> Result<bool> {
+    async fn set_if_not_exists(
+        &self,
+        key: &str,
+        value: &[u8],
+        _ttl: Option<Duration>,
+    ) -> Result<bool> {
         let mut data = self.data.write().await;
         if data.contains_key(key) {
             Ok(false)
@@ -128,7 +138,12 @@ impl KvStore for RedisKvStore {
         Ok(exists)
     }
 
-    async fn set_if_not_exists(&self, key: &str, value: &[u8], ttl: Option<Duration>) -> Result<bool> {
+    async fn set_if_not_exists(
+        &self,
+        key: &str,
+        value: &[u8],
+        ttl: Option<Duration>,
+    ) -> Result<bool> {
         let mut conn = self.conn.clone();
         if let Some(ttl) = ttl {
             let seconds = ttl.as_secs();
@@ -163,11 +178,21 @@ impl KvStore for RedisKvStore {
             }
             Ok(Err(e)) => {
                 let latency = start.elapsed().as_millis() as u64;
-                Ok(crate::health::HealthStatus::unhealthy("kv", "redis", &e.to_string(), latency))
+                Ok(crate::health::HealthStatus::unhealthy(
+                    "kv",
+                    "redis",
+                    &e.to_string(),
+                    latency,
+                ))
             }
             Err(_) => {
                 let latency = start.elapsed().as_millis() as u64;
-                Ok(crate::health::HealthStatus::unhealthy("kv", "redis", "health check timed out (2s)", latency))
+                Ok(crate::health::HealthStatus::unhealthy(
+                    "kv",
+                    "redis",
+                    "health check timed out (2s)",
+                    latency,
+                ))
             }
         }
     }

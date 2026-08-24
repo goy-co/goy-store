@@ -5,7 +5,9 @@ use std::time::Duration;
 
 #[tokio::test]
 async fn test_s3_blob_store_operations_against_minio() {
-    let store = setup_minio_bucket().await.expect("failed to setup minio bucket");
+    let store = setup_minio_bucket()
+        .await
+        .expect("failed to setup minio bucket");
 
     let key = "releases/v1.0.0/app-binary.tar.gz";
     let payload = vec![0xCA, 0xFE, 0xBA, 0xBE, 0x01, 0x02, 0x03, 0x04];
@@ -26,15 +28,24 @@ async fn test_s3_blob_store_operations_against_minio() {
     assert!(fetched.is_some(), "expected object to exist in S3");
     let (data, fetched_meta) = fetched.unwrap();
     assert_eq!(data, payload);
-    assert_eq!(fetched_meta.content_type, Some("application/gzip".to_string()));
-    assert_eq!(fetched_meta.custom.get("version").map(|s| s.as_str()), Some("1.0.0"));
+    assert_eq!(
+        fetched_meta.content_type,
+        Some("application/gzip".to_string())
+    );
+    assert_eq!(
+        fetched_meta.custom.get("version").map(|s| s.as_str()),
+        Some("1.0.0")
+    );
 
     // 3. List
     let list = store.list(Some("releases")).await.unwrap();
     assert_eq!(list, vec!["releases/v1.0.0/app-binary.tar.gz"]);
 
     // 4. Presign URL
-    let presigned_url = store.presign_url(key, Duration::from_secs(300)).await.unwrap();
+    let presigned_url = store
+        .presign_url(key, Duration::from_secs(300))
+        .await
+        .unwrap();
     assert!(presigned_url.contains("http://"));
     assert!(presigned_url.contains(key));
 

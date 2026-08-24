@@ -1,0 +1,153 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  rust-check-and-test:
+    name: Rust Check, Unit & E2E Tests
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: goy_store_test
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+      minio:
+        image: minio/minio:latest
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        ports:
+          - 9000:9000
+          - 9001:9001
+        options: >-
+          --health-cmd "mc ready local"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+        args: server /data --console-address ":9001"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Check Rust Formatting
+        run: cd rust && cargo fmt -- --check
+
+      - name: Run Clippy
+        run: cd rust && cargo clippy --all-features -- -D warnings
+
+      - name: Run Unit Tests
+        run: cd rust && cargo test
+
+      - name: Run E2E Integration Tests
+        env:
+          REDIS_URL: redis://127.0.0.1:6379
+          DATABASE_URL: postgres://test:test@127.0.0.1:5432/goy_store_test?sslmode=disable
+          MINIO_ENDPOINT: http://127.0.0.1:9000
+          MINIO_ACCESS_KEY: minioadmin
+          MINIO_SECRET_KEY: minioadmin
+          MINIO_BUCKET: goy-store-test
+        run: cd rust && cargo test --test e2e --all-features
+
+  go-check-and-test:
+    name: Go Lint, Unit & E2E Tests
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: goy_store_test
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+      minio:
+        image: minio/minio:latest
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        ports:
+          - 9000:9000
+          - 9001:9001
+        options: >-
+          --health-cmd "mc ready local"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+        args: server /data --console-address ":9001"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache-dependency-path: go/go.sum
+
+      - name: Run Go Vet
+        run: cd go && go vet ./...
+
+      - name: Run Unit Tests
+        run: cd go && go test -v ./...
+
+      - name: Run E2E Integration Tests
+        env:
+          REDIS_URL: redis://127.0.0.1:6379
+          DATABASE_URL: postgres://test:test@127.0.0.1:5432/goy_store_test?sslmode=disable
+          MINIO_ENDPOINT: http://127.0.0.1:9000
+          MINIO_ACCESS_KEY: minioadmin
+          MINIO_SECRET_KEY: minioadmin
+          MINIO_BUCKET: goy-store-test
+        run: cd go && go test -tags=e2e -v ./e2e/...

@@ -5,9 +5,9 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use prometheus::{
+    CounterVec, GaugeVec, HistogramOpts, HistogramVec, Opts, Registry,
     register_counter_vec_with_registry, register_gauge_vec_with_registry,
-    register_histogram_vec_with_registry, CounterVec, GaugeVec, HistogramOpts, HistogramVec, Opts,
-    Registry,
+    register_histogram_vec_with_registry,
 };
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -87,31 +87,46 @@ impl StoreMetrics {
         )?;
 
         let retries_total = register_counter_vec_with_registry!(
-            Opts::new("goy_store_retries_total", "Total number of store operation retries"),
+            Opts::new(
+                "goy_store_retries_total",
+                "Total number of store operation retries"
+            ),
             &["contract", "operation", "backend"],
             registry
         )?;
 
         let circuit_breaker_state = register_gauge_vec_with_registry!(
-            Opts::new("goy_store_circuit_breaker_state", "Circuit breaker state (0=closed, 1=open, 2=half-open)"),
+            Opts::new(
+                "goy_store_circuit_breaker_state",
+                "Circuit breaker state (0=closed, 1=open, 2=half-open)"
+            ),
             &["contract", "backend"],
             registry
         )?;
 
         let pool_active_connections = register_gauge_vec_with_registry!(
-            Opts::new("goy_store_pool_active_connections", "Number of active pool connections"),
+            Opts::new(
+                "goy_store_pool_active_connections",
+                "Number of active pool connections"
+            ),
             &["backend"],
             registry
         )?;
 
         let pool_idle_connections = register_gauge_vec_with_registry!(
-            Opts::new("goy_store_pool_idle_connections", "Number of idle pool connections"),
+            Opts::new(
+                "goy_store_pool_idle_connections",
+                "Number of idle pool connections"
+            ),
             &["backend"],
             registry
         )?;
 
         let health_check_status = register_gauge_vec_with_registry!(
-            Opts::new("goy_store_health_check_status", "Health check status (1=healthy, 0=unhealthy, 2=degraded)"),
+            Opts::new(
+                "goy_store_health_check_status",
+                "Health check status (1=healthy, 0=unhealthy, 2=degraded)"
+            ),
             &["contract", "backend"],
             registry
         )?;
@@ -237,7 +252,12 @@ impl KvStore for InstrumentedKvStore {
         res
     }
 
-    async fn set_if_not_exists(&self, key: &str, value: &[u8], ttl: Option<Duration>) -> Result<bool> {
+    async fn set_if_not_exists(
+        &self,
+        key: &str,
+        value: &[u8],
+        ttl: Option<Duration>,
+    ) -> Result<bool> {
         let start = Instant::now();
         let res = self.inner.set_if_not_exists(key, value, ttl).await;
         let duration = start.elapsed().as_secs_f64();
@@ -671,7 +691,10 @@ impl PubSubStore for InstrumentedPubSubStore {
         res
     }
 
-    async fn subscribe(&self, channels: &[&str]) -> Result<tokio_stream::wrappers::BroadcastStream<Message>> {
+    async fn subscribe(
+        &self,
+        channels: &[&str],
+    ) -> Result<tokio_stream::wrappers::BroadcastStream<Message>> {
         let start = Instant::now();
         let res = self.inner.subscribe(channels).await;
         let duration = start.elapsed().as_secs_f64();
@@ -738,7 +761,10 @@ mod tests {
         let store = Arc::new(MemoryKvStore::default());
         let instrumented = InstrumentedKvStore::new(store, metrics.clone(), "memory");
 
-        instrumented.set("test_key", b"test_val", None).await.unwrap();
+        instrumented
+            .set("test_key", b"test_val", None)
+            .await
+            .unwrap();
         let val = instrumented.get("test_key").await.unwrap();
         assert_eq!(val, Some(b"test_val".to_vec()));
 

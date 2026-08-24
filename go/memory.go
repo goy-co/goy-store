@@ -9,12 +9,12 @@ import (
 
 // MemoryStore is an in-memory implementation of GoyStore for testing and local development.
 type MemoryStore struct {
-	kv          *memoryKV
-	relational  *memoryRelational
-	sortedSet   *memorySortedSet
-	pubsub      *memoryPubSub
-	blob        *memoryBlob
-	metrics     *Metrics
+	kv         *memoryKV
+	relational *memoryRelational
+	sortedSet  *memorySortedSet
+	pubsub     *memoryPubSub
+	blob       *memoryBlob
+	metrics    *Metrics
 }
 
 // NewMemoryStore creates a new in-memory GoyStore.
@@ -29,7 +29,7 @@ func NewMemoryStore() GoyStore {
 	}
 }
 
-func (s *MemoryStore) KV() KVStore          { return s.kv }
+func (s *MemoryStore) KV() KVStore                 { return s.kv }
 func (s *MemoryStore) Relational() RelationalStore { return s.relational }
 func (s *MemoryStore) SortedSet() SortedSetStore   { return s.sortedSet }
 func (s *MemoryStore) PubSub() PubSubStore         { return s.pubsub }
@@ -169,7 +169,7 @@ func (m *memorySortedSet) Remove(_ context.Context, set string, member string) e
 func (m *memorySortedSet) RangeByScore(_ context.Context, set string, min, max float64, limit *int) ([]ScoredMember, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	var result []ScoredMember
 	if members, ok := m.sets[set]; ok {
 		for member, score := range members {
@@ -178,15 +178,15 @@ func (m *memorySortedSet) RangeByScore(_ context.Context, set string, min, max f
 			}
 		}
 	}
-	
+
 	sort.Slice(result, func(i, j int) bool {
 		return result[i].Score < result[j].Score
 	})
-	
+
 	if limit != nil && len(result) > *limit {
 		result = result[:*limit]
 	}
-	
+
 	return result, nil
 }
 
@@ -199,7 +199,7 @@ func (m *memorySortedSet) Count(_ context.Context, set string) (int64, error) {
 func (m *memorySortedSet) RemoveRange(_ context.Context, set string, min, max float64) (int64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	var count int64
 	if members, ok := m.sets[set]; ok {
 		for member, score := range members {
@@ -244,13 +244,13 @@ type memoryPubSub struct {
 func (m *memoryPubSub) Publish(_ context.Context, channel string, message []byte) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	msg := Message{
 		Channel:   channel,
 		Payload:   message,
 		Timestamp: time.Now(),
 	}
-	
+
 	if subs, ok := m.subscribers[channel]; ok {
 		for ch := range subs {
 			select {
@@ -266,7 +266,7 @@ func (m *memoryPubSub) Publish(_ context.Context, channel string, message []byte
 func (m *memoryPubSub) Subscribe(_ context.Context, channels []string) (<-chan Message, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	ch := make(chan Message, 100)
 	for _, channel := range channels {
 		if m.subscribers[channel] == nil {
@@ -280,7 +280,7 @@ func (m *memoryPubSub) Subscribe(_ context.Context, channels []string) (<-chan M
 func (m *memoryPubSub) Unsubscribe(_ context.Context, channels []string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	for _, channel := range channels {
 		if _, ok := m.subscribers[channel]; ok {
 			// Note: In a real implementation, we'd need to track which channel belongs to which subscriber
@@ -325,7 +325,7 @@ func (m *memoryBlob) Put(_ context.Context, key string, data []byte, metadata *M
 func (m *memoryBlob) Get(_ context.Context, key string) ([]byte, *Metadata, bool, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	if b, ok := m.blobs[key]; ok {
 		return append([]byte(nil), b.data...), b.metadata, true, nil
 	}
@@ -342,7 +342,7 @@ func (m *memoryBlob) Delete(_ context.Context, key string) error {
 func (m *memoryBlob) List(_ context.Context, prefix *string) ([]string, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	var keys []string
 	for k := range m.blobs {
 		if prefix == nil || len(k) >= len(*prefix) && k[:len(*prefix)] == *prefix {

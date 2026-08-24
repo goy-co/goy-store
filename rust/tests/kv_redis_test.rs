@@ -7,7 +7,11 @@ async fn test_redis_kv_crud_and_ttl() {
     let store = create_test_store().await.expect("failed to create store");
 
     // 1. Set & Get
-    store.kv.set("node:1:status", b"active", None).await.unwrap();
+    store
+        .kv
+        .set("node:1:status", b"active", None)
+        .await
+        .unwrap();
     let val = store.kv.get("node:1:status").await.unwrap();
     assert_eq!(val, Some(b"active".to_vec()));
 
@@ -16,15 +20,36 @@ async fn test_redis_kv_crud_and_ttl() {
     assert!(exists);
 
     // 3. SetIfNotExists
-    let set_nx = store.kv.set_if_not_exists("node:1:status", b"duplicate", None).await.unwrap();
-    assert!(!set_nx, "set_if_not_exists should return false for existing key");
+    let set_nx = store
+        .kv
+        .set_if_not_exists("node:1:status", b"duplicate", None)
+        .await
+        .unwrap();
+    assert!(
+        !set_nx,
+        "set_if_not_exists should return false for existing key"
+    );
 
-    let set_nx_new = store.kv.set_if_not_exists("node:2:status", b"standby", None).await.unwrap();
-    assert!(set_nx_new, "set_if_not_exists should return true for new key");
+    let set_nx_new = store
+        .kv
+        .set_if_not_exists("node:2:status", b"standby", None)
+        .await
+        .unwrap();
+    assert!(
+        set_nx_new,
+        "set_if_not_exists should return true for new key"
+    );
 
     // 4. TTL expiration
-    store.kv.set("ephemeral:key", b"temp", Some(Duration::from_millis(300))).await.unwrap();
-    assert_eq!(store.kv.get("ephemeral:key").await.unwrap(), Some(b"temp".to_vec()));
+    store
+        .kv
+        .set("ephemeral:key", b"temp", Some(Duration::from_millis(300)))
+        .await
+        .unwrap();
+    assert_eq!(
+        store.kv.get("ephemeral:key").await.unwrap(),
+        Some(b"temp".to_vec())
+    );
     tokio::time::sleep(Duration::from_millis(400)).await;
     assert_eq!(store.kv.get("ephemeral:key").await.unwrap(), None);
 

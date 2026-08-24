@@ -4,29 +4,32 @@
 //! regardless of the underlying backend. It manages connections efficiently,
 //! guarantees resilience, and exposes native observability.
 
-pub mod kv;
-pub mod relational;
-pub mod sorted_set;
-pub mod pubsub;
 pub mod blob;
 pub mod config;
-pub mod metrics;
-pub mod resilience;
 pub mod health;
+pub mod kv;
+pub mod metrics;
+pub mod pubsub;
+pub mod relational;
+pub mod resilience;
+pub mod sorted_set;
 
-pub use kv::KvStore;
-pub use relational::RelationalStore;
-pub use sorted_set::SortedSetStore;
-pub use pubsub::PubSubStore;
 pub use blob::BlobStore;
 pub use config::StoreConfig;
+pub use kv::KvStore;
+pub use pubsub::PubSubStore;
+pub use relational::RelationalStore;
+pub use sorted_set::SortedSetStore;
 
 pub use health::{ConsolidatedHealth, HealthState, HealthStatus};
 pub use metrics::StoreMetrics;
-pub use resilience::{CircuitBreaker, ResilientKvStore, ResilientRelationalStore, ResilientSortedSetStore, ResilientBlobStore, ResilientPubSubStore};
+pub use resilience::{
+    CircuitBreaker, ResilientBlobStore, ResilientKvStore, ResilientPubSubStore,
+    ResilientRelationalStore, ResilientSortedSetStore,
+};
 
-use std::sync::Arc;
 use anyhow::Result;
+use std::sync::Arc;
 
 /// The main Goy Store interface, aggregating all persistence contracts.
 pub struct GoyStore {
@@ -46,9 +49,15 @@ impl GoyStore {
     }
 
     /// Creates a new GoyStore instance with a specific StoreMetrics registry.
-    pub async fn from_config_with_metrics(config: &StoreConfig, metrics: Arc<StoreMetrics>) -> Result<Self> {
+    pub async fn from_config_with_metrics(
+        config: &StoreConfig,
+        metrics: Arc<StoreMetrics>,
+    ) -> Result<Self> {
         #[cfg(feature = "redis-backend")]
-        let (redis_conn, redis_client): (Option<redis::aio::ConnectionManager>, Option<redis::Client>) = {
+        let (redis_conn, redis_client): (
+            Option<redis::aio::ConnectionManager>,
+            Option<redis::Client>,
+        ) = {
             if config.kv.backend == "redis"
                 || config.sorted_set.backend == "redis"
                 || config.pubsub.backend == "redis"
@@ -92,7 +101,9 @@ impl GoyStore {
             #[cfg(feature = "redis-backend")]
             "redis" => {
                 let conn = redis_conn.clone().expect("redis connection manager exists");
-                Arc::new(sorted_set::RedisSortedSetStore::from_connection_manager(conn))
+                Arc::new(sorted_set::RedisSortedSetStore::from_connection_manager(
+                    conn,
+                ))
             }
             _ => Arc::new(sorted_set::MemorySortedSetStore::default()),
         };
@@ -113,7 +124,9 @@ impl GoyStore {
             "redis" => {
                 let conn = redis_conn.expect("redis connection manager exists");
                 let client = redis_client.expect("redis client exists");
-                Arc::new(pubsub::RedisPubSubStore::from_connection_manager(conn, client))
+                Arc::new(pubsub::RedisPubSubStore::from_connection_manager(
+                    conn, client,
+                ))
             }
             _ => Arc::new(pubsub::MemoryPubSubStore::default()),
         };
@@ -159,9 +172,7 @@ impl GoyStore {
                 Arc::new(blob::LocalBlobStore::new(path))
             }
             #[cfg(feature = "s3-backend")]
-            "s3" | "minio" | "r2" => {
-                Arc::new(blob::S3BlobStore::new(&config.blob).await?)
-            }
+            "s3" | "minio" | "r2" => Arc::new(blob::S3BlobStore::new(&config.blob).await?),
             _ => Arc::new(blob::MemoryBlobStore::default()),
         };
         let blob_instrumented = Arc::new(metrics::InstrumentedBlobStore::new(
@@ -198,10 +209,17 @@ impl GoyStore {
 
         let statuses = vec![
             kv_res.unwrap_or_else(|e| HealthStatus::unhealthy("kv", "unknown", &e.to_string(), 0)),
-            rel_res.unwrap_or_else(|e| HealthStatus::unhealthy("relational", "unknown", &e.to_string(), 0)),
-            ss_res.unwrap_or_else(|e| HealthStatus::unhealthy("sorted_set", "unknown", &e.to_string(), 0)),
-            ps_res.unwrap_or_else(|e| HealthStatus::unhealthy("pubsub", "unknown", &e.to_string(), 0)),
-            blob_res.unwrap_or_else(|e| HealthStatus::unhealthy("blob", "unknown", &e.to_string(), 0)),
+            rel_res.unwrap_or_else(|e| {
+                HealthStatus::unhealthy("relational", "unknown", &e.to_string(), 0)
+            }),
+            ss_res.unwrap_or_else(|e| {
+                HealthStatus::unhealthy("sorted_set", "unknown", &e.to_string(), 0)
+            }),
+            ps_res.unwrap_or_else(|e| {
+                HealthStatus::unhealthy("pubsub", "unknown", &e.to_string(), 0)
+            }),
+            blob_res
+                .unwrap_or_else(|e| HealthStatus::unhealthy("blob", "unknown", &e.to_string(), 0)),
         ];
 
         ConsolidatedHealth::from_statuses(statuses)
@@ -216,7 +234,7 @@ mod tests {
     async fn test_store_creation_and_health_check() {
         let config = StoreConfig::default();
         let store = GoyStore::from_config(&config).await.unwrap();
-        
+
         // Test KV store
         store.kv.set("test_key", b"test_value", None).await.unwrap();
         let result = store.kv.get("test_key").await.unwrap();

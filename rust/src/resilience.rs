@@ -1,10 +1,10 @@
 //! Resilience module: Retry with exponential backoff and Jitter, Circuit Breaker, and Operation Timeout.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use std::future::Future;
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
@@ -204,23 +204,38 @@ impl KvStore for ResilientKvStore {
     async fn set(&self, key: &str, value: &[u8], ttl: Option<Duration>) -> Result<()> {
         let k = key.to_string();
         let v = value.to_vec();
-        self.executor.execute("set", || self.inner.set(&k, &v, ttl)).await
+        self.executor
+            .execute("set", || self.inner.set(&k, &v, ttl))
+            .await
     }
 
     async fn delete(&self, key: &str) -> Result<()> {
         let k = key.to_string();
-        self.executor.execute("delete", || self.inner.delete(&k)).await
+        self.executor
+            .execute("delete", || self.inner.delete(&k))
+            .await
     }
 
     async fn exists(&self, key: &str) -> Result<bool> {
         let k = key.to_string();
-        self.executor.execute("exists", || self.inner.exists(&k)).await
+        self.executor
+            .execute("exists", || self.inner.exists(&k))
+            .await
     }
 
-    async fn set_if_not_exists(&self, key: &str, value: &[u8], ttl: Option<Duration>) -> Result<bool> {
+    async fn set_if_not_exists(
+        &self,
+        key: &str,
+        value: &[u8],
+        ttl: Option<Duration>,
+    ) -> Result<bool> {
         let k = key.to_string();
         let v = value.to_vec();
-        self.executor.execute("set_if_not_exists", || self.inner.set_if_not_exists(&k, &v, ttl)).await
+        self.executor
+            .execute("set_if_not_exists", || {
+                self.inner.set_if_not_exists(&k, &v, ttl)
+            })
+            .await
     }
 
     async fn is_healthy(&self) -> Result<crate::health::HealthStatus> {
@@ -252,18 +267,24 @@ impl RelationalStore for ResilientRelationalStore {
     async fn query(&self, sql: &str, params: &[Param]) -> Result<Rows> {
         let s = sql.to_string();
         let p = params.to_vec();
-        self.executor.execute("query", || self.inner.query(&s, &p)).await
+        self.executor
+            .execute("query", || self.inner.query(&s, &p))
+            .await
     }
 
     async fn execute(&self, sql: &str, params: &[Param]) -> Result<u64> {
         let s = sql.to_string();
         let p = params.to_vec();
-        self.executor.execute("execute", || self.inner.execute(&s, &p)).await
+        self.executor
+            .execute("execute", || self.inner.execute(&s, &p))
+            .await
     }
 
     async fn migrate(&self, migrations: &[Migration]) -> Result<()> {
         let m = migrations.to_vec();
-        self.executor.execute("migrate", || self.inner.migrate(&m)).await
+        self.executor
+            .execute("migrate", || self.inner.migrate(&m))
+            .await
     }
 
     async fn is_healthy(&self) -> Result<crate::health::HealthStatus> {
@@ -295,34 +316,54 @@ impl SortedSetStore for ResilientSortedSetStore {
     async fn add(&self, set: &str, member: &str, score: f64) -> Result<()> {
         let s = set.to_string();
         let m = member.to_string();
-        self.executor.execute("add", || self.inner.add(&s, &m, score)).await
+        self.executor
+            .execute("add", || self.inner.add(&s, &m, score))
+            .await
     }
 
     async fn remove(&self, set: &str, member: &str) -> Result<()> {
         let s = set.to_string();
         let m = member.to_string();
-        self.executor.execute("remove", || self.inner.remove(&s, &m)).await
+        self.executor
+            .execute("remove", || self.inner.remove(&s, &m))
+            .await
     }
 
-    async fn range_by_score(&self, set: &str, min: f64, max: f64, limit: Option<usize>) -> Result<Vec<(String, f64)>> {
+    async fn range_by_score(
+        &self,
+        set: &str,
+        min: f64,
+        max: f64,
+        limit: Option<usize>,
+    ) -> Result<Vec<(String, f64)>> {
         let s = set.to_string();
-        self.executor.execute("range_by_score", || self.inner.range_by_score(&s, min, max, limit)).await
+        self.executor
+            .execute("range_by_score", || {
+                self.inner.range_by_score(&s, min, max, limit)
+            })
+            .await
     }
 
     async fn count(&self, set: &str) -> Result<u64> {
         let s = set.to_string();
-        self.executor.execute("count", || self.inner.count(&s)).await
+        self.executor
+            .execute("count", || self.inner.count(&s))
+            .await
     }
 
     async fn remove_range(&self, set: &str, min: f64, max: f64) -> Result<u64> {
         let s = set.to_string();
-        self.executor.execute("remove_range", || self.inner.remove_range(&s, min, max)).await
+        self.executor
+            .execute("remove_range", || self.inner.remove_range(&s, min, max))
+            .await
     }
 
     async fn score(&self, set: &str, member: &str) -> Result<Option<f64>> {
         let s = set.to_string();
         let m = member.to_string();
-        self.executor.execute("score", || self.inner.score(&s, &m)).await
+        self.executor
+            .execute("score", || self.inner.score(&s, &m))
+            .await
     }
 
     async fn is_healthy(&self) -> Result<crate::health::HealthStatus> {
@@ -355,7 +396,9 @@ impl BlobStore for ResilientBlobStore {
         let k = key.to_string();
         let d = data.to_vec();
         let m = metadata.clone();
-        self.executor.execute("put", || self.inner.put(&k, &d, m.clone())).await
+        self.executor
+            .execute("put", || self.inner.put(&k, &d, m.clone()))
+            .await
     }
 
     async fn get(&self, key: &str) -> Result<Option<(Vec<u8>, Metadata)>> {
@@ -365,17 +408,23 @@ impl BlobStore for ResilientBlobStore {
 
     async fn delete(&self, key: &str) -> Result<()> {
         let k = key.to_string();
-        self.executor.execute("delete", || self.inner.delete(&k)).await
+        self.executor
+            .execute("delete", || self.inner.delete(&k))
+            .await
     }
 
     async fn list(&self, prefix: Option<&str>) -> Result<Vec<String>> {
         let p = prefix.map(|s| s.to_string());
-        self.executor.execute("list", || self.inner.list(p.as_deref())).await
+        self.executor
+            .execute("list", || self.inner.list(p.as_deref()))
+            .await
     }
 
     async fn presign_url(&self, key: &str, expiry: Duration) -> Result<String> {
         let k = key.to_string();
-        self.executor.execute("presign_url", || self.inner.presign_url(&k, expiry)).await
+        self.executor
+            .execute("presign_url", || self.inner.presign_url(&k, expiry))
+            .await
     }
 
     async fn is_healthy(&self) -> Result<crate::health::HealthStatus> {
@@ -407,10 +456,15 @@ impl PubSubStore for ResilientPubSubStore {
     async fn publish(&self, channel: &str, message: &[u8]) -> Result<()> {
         let c = channel.to_string();
         let m = message.to_vec();
-        self.executor.execute("publish", || self.inner.publish(&c, &m)).await
+        self.executor
+            .execute("publish", || self.inner.publish(&c, &m))
+            .await
     }
 
-    async fn subscribe(&self, channels: &[&str]) -> Result<tokio_stream::wrappers::BroadcastStream<Message>> {
+    async fn subscribe(
+        &self,
+        channels: &[&str],
+    ) -> Result<tokio_stream::wrappers::BroadcastStream<Message>> {
         self.inner.subscribe(channels).await
     }
 
@@ -468,18 +522,26 @@ mod tests {
         let failed_once = Arc::new(AtomicBool::new(false));
         let failed_clone = failed_once.clone();
 
-        let res = exec.execute("test_op", || {
-            let f = failed_clone.clone();
-            async move {
-                if !f.swap(true, Ordering::SeqCst) {
-                    Err(anyhow!("transient error"))
-                } else {
-                    Ok(42)
+        let res = exec
+            .execute("test_op", || {
+                let f = failed_clone.clone();
+                async move {
+                    if !f.swap(true, Ordering::SeqCst) {
+                        Err(anyhow!("transient error"))
+                    } else {
+                        Ok(42)
+                    }
                 }
-            }
-        }).await;
+            })
+            .await;
 
         assert_eq!(res.unwrap(), 42);
-        assert_eq!(metrics.retries_total.with_label_values(&["test", "test_op", "mem"]).get(), 1.0);
+        assert_eq!(
+            metrics
+                .retries_total
+                .with_label_values(&["test", "test_op", "mem"])
+                .get(),
+            1.0
+        );
     }
 }

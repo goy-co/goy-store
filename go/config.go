@@ -8,21 +8,21 @@ import (
 
 // Config represents the Goy Store configuration.
 type Config struct {
-	KV          KVConfig          `toml:"kv"`
-	Relational  RelationalConfig  `toml:"relational"`
-	SortedSet   SortedSetConfig   `toml:"sorted_set"`
-	PubSub      PubSubConfig      `toml:"pubsub"`
-	Blob        BlobConfig        `toml:"blob"`
-	Resilience  ResilienceConfig  `toml:"resilience"`
+	KV         KVConfig         `toml:"kv"`
+	Relational RelationalConfig `toml:"relational"`
+	SortedSet  SortedSetConfig  `toml:"sorted_set"`
+	PubSub     PubSubConfig     `toml:"pubsub"`
+	Blob       BlobConfig       `toml:"blob"`
+	Resilience ResilienceConfig `toml:"resilience"`
 }
 
 // ResilienceConfig represents retry and circuit breaker configuration.
 type ResilienceConfig struct {
-	MaxRetries                  int `toml:"max_retries,omitempty"`
-	BaseBackoffMS               int `toml:"base_backoff_ms,omitempty"`
-	CircuitBreakerThreshold     int `toml:"circuit_breaker_threshold,omitempty"`
-	CircuitBreakerResetSeconds  int `toml:"circuit_breaker_reset_seconds,omitempty"`
-	OperationTimeoutSeconds     int `toml:"operation_timeout_seconds,omitempty"`
+	MaxRetries                 int `toml:"max_retries,omitempty"`
+	BaseBackoffMS              int `toml:"base_backoff_ms,omitempty"`
+	CircuitBreakerThreshold    int `toml:"circuit_breaker_threshold,omitempty"`
+	CircuitBreakerResetSeconds int `toml:"circuit_breaker_reset_seconds,omitempty"`
+	OperationTimeoutSeconds    int `toml:"operation_timeout_seconds,omitempty"`
 }
 
 // KVConfig represents the configuration for the KV store.

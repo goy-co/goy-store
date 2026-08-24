@@ -7,7 +7,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{RwLock, broadcast};
 
 #[derive(Clone)]
 pub struct Message {
@@ -19,7 +19,10 @@ pub struct Message {
 #[async_trait]
 pub trait PubSubStore: Send + Sync {
     async fn publish(&self, channel: &str, message: &[u8]) -> Result<()>;
-    async fn subscribe(&self, channels: &[&str]) -> Result<tokio_stream::wrappers::BroadcastStream<Message>>;
+    async fn subscribe(
+        &self,
+        channels: &[&str],
+    ) -> Result<tokio_stream::wrappers::BroadcastStream<Message>>;
     async fn unsubscribe(&self, channels: &[&str]) -> Result<()>;
     async fn is_healthy(&self) -> Result<crate::health::HealthStatus>;
 }
@@ -52,16 +55,19 @@ impl PubSubStore for MemoryPubSubStore {
         Ok(())
     }
 
-    async fn subscribe(&self, channels: &[&str]) -> Result<tokio_stream::wrappers::BroadcastStream<Message>> {
+    async fn subscribe(
+        &self,
+        channels: &[&str],
+    ) -> Result<tokio_stream::wrappers::BroadcastStream<Message>> {
         // For simplicity, this implementation only supports subscribing to a single channel at a time
         // A real implementation would merge multiple streams or use a different architecture
         let channel = channels.first().copied().unwrap_or("default");
-        
+
         let mut chans = self.channels.write().await;
-        let tx = chans.entry(channel.to_string()).or_insert_with(|| {
-            broadcast::channel(1000).0
-        });
-        
+        let tx = chans
+            .entry(channel.to_string())
+            .or_insert_with(|| broadcast::channel(1000).0);
+
         let rx = tx.subscribe();
         Ok(tokio_stream::wrappers::BroadcastStream::new(rx))
     }
@@ -96,7 +102,10 @@ impl RedisPubSubStore {
         })
     }
 
-    pub fn from_connection_manager(conn: redis::aio::ConnectionManager, client: redis::Client) -> Self {
+    pub fn from_connection_manager(
+        conn: redis::aio::ConnectionManager,
+        client: redis::Client,
+    ) -> Self {
         Self {
             conn,
             client,
@@ -114,7 +123,10 @@ impl PubSubStore for RedisPubSubStore {
         Ok(())
     }
 
-    async fn subscribe(&self, channels: &[&str]) -> Result<tokio_stream::wrappers::BroadcastStream<Message>> {
+    async fn subscribe(
+        &self,
+        channels: &[&str],
+    ) -> Result<tokio_stream::wrappers::BroadcastStream<Message>> {
         use tokio_stream::StreamExt;
 
         let channel_name = channels.first().copied().unwrap_or("default");
@@ -178,15 +190,27 @@ impl PubSubStore for RedisPubSubStore {
         match timeout_fut.await {
             Ok(Ok(_)) => {
                 let latency = start.elapsed().as_millis() as u64;
-                Ok(crate::health::HealthStatus::healthy("pubsub", "redis", latency))
+                Ok(crate::health::HealthStatus::healthy(
+                    "pubsub", "redis", latency,
+                ))
             }
             Ok(Err(e)) => {
                 let latency = start.elapsed().as_millis() as u64;
-                Ok(crate::health::HealthStatus::unhealthy("pubsub", "redis", &e.to_string(), latency))
+                Ok(crate::health::HealthStatus::unhealthy(
+                    "pubsub",
+                    "redis",
+                    &e.to_string(),
+                    latency,
+                ))
             }
             Err(_) => {
                 let latency = start.elapsed().as_millis() as u64;
-                Ok(crate::health::HealthStatus::unhealthy("pubsub", "redis", "health check timed out (2s)", latency))
+                Ok(crate::health::HealthStatus::unhealthy(
+                    "pubsub",
+                    "redis",
+                    "health check timed out (2s)",
+                    latency,
+                ))
             }
         }
     }

@@ -2,8 +2,8 @@ use goy_store::config::ResilienceConfig;
 use goy_store::metrics::StoreMetrics;
 use goy_store::resilience::{CircuitBreaker, ResilientExecutor};
 use prometheus::Registry;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 #[tokio::test]

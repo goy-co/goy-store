@@ -14,7 +14,11 @@ async fn test_redis_pubsub_messaging() {
     tokio::time::sleep(Duration::from_millis(50)).await;
 
     // Publish message
-    store.pubsub.publish(channel, b"test-event-payload").await.unwrap();
+    store
+        .pubsub
+        .publish(channel, b"test-event-payload")
+        .await
+        .unwrap();
 
     // Receive on stream1
     let msg1 = tokio::time::timeout(Duration::from_secs(2), stream1.next()).await;

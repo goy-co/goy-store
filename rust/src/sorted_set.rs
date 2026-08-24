@@ -57,7 +57,7 @@ impl SortedSetStore for MemorySortedSetStore {
         let mut sets = self.sets.write().await;
         let inner = sets.entry(set.to_string()).or_default();
         let ord_score = OrderedScore(score);
-        
+
         // Remove old score if member already exists
         if let Some(old_score) = inner.member_scores.get(member) {
             if let Some(members) = inner.scores.get_mut(old_score) {
@@ -68,10 +68,14 @@ impl SortedSetStore for MemorySortedSetStore {
                 }
             }
         }
-        
+
         inner.member_scores.insert(member.to_string(), ord_score);
-        inner.scores.entry(ord_score).or_default().push(member.to_string());
-        
+        inner
+            .scores
+            .entry(ord_score)
+            .or_default()
+            .push(member.to_string());
+
         Ok(())
     }
 
@@ -99,7 +103,7 @@ impl SortedSetStore for MemorySortedSetStore {
     ) -> Result<Vec<(String, f64)>> {
         let sets = self.sets.read().await;
         let mut result = Vec::new();
-        
+
         if let Some(inner) = sets.get(set) {
             for (&score, members) in inner.scores.range(OrderedScore(min)..=OrderedScore(max)) {
                 for member in members {
@@ -112,7 +116,7 @@ impl SortedSetStore for MemorySortedSetStore {
                 }
             }
         }
-        
+
         Ok(result)
     }
 
@@ -128,10 +132,15 @@ impl SortedSetStore for MemorySortedSetStore {
     async fn remove_range(&self, set: &str, min: f64, max: f64) -> Result<u64> {
         let mut sets = self.sets.write().await;
         let mut removed_count = 0;
-        
+
         if let Some(inner) = sets.get_mut(set) {
-            let scores_to_remove: Vec<OrderedScore> = inner.scores.keys().copied().filter(|&s| s.0 >= min && s.0 <= max).collect();
-            
+            let scores_to_remove: Vec<OrderedScore> = inner
+                .scores
+                .keys()
+                .copied()
+                .filter(|&s| s.0 >= min && s.0 <= max)
+                .collect();
+
             for score in scores_to_remove {
                 if let Some(members) = inner.scores.remove(&score) {
                     removed_count += members.len() as u64;
@@ -141,7 +150,7 @@ impl SortedSetStore for MemorySortedSetStore {
                 }
             }
         }
-        
+
         Ok(removed_count)
     }
 
@@ -155,7 +164,11 @@ impl SortedSetStore for MemorySortedSetStore {
     }
 
     async fn is_healthy(&self) -> Result<crate::health::HealthStatus> {
-        Ok(crate::health::HealthStatus::healthy("sorted_set", "memory", 0))
+        Ok(crate::health::HealthStatus::healthy(
+            "sorted_set",
+            "memory",
+            0,
+        ))
     }
 }
 
@@ -246,15 +259,29 @@ impl SortedSetStore for RedisSortedSetStore {
         match timeout_fut.await {
             Ok(Ok(_)) => {
                 let latency = start.elapsed().as_millis() as u64;
-                Ok(crate::health::HealthStatus::healthy("sorted_set", "redis", latency))
+                Ok(crate::health::HealthStatus::healthy(
+                    "sorted_set",
+                    "redis",
+                    latency,
+                ))
             }
             Ok(Err(e)) => {
                 let latency = start.elapsed().as_millis() as u64;
-                Ok(crate::health::HealthStatus::unhealthy("sorted_set", "redis", &e.to_string(), latency))
+                Ok(crate::health::HealthStatus::unhealthy(
+                    "sorted_set",
+                    "redis",
+                    &e.to_string(),
+                    latency,
+                ))
             }
             Err(_) => {
                 let latency = start.elapsed().as_millis() as u64;
-                Ok(crate::health::HealthStatus::unhealthy("sorted_set", "redis", "health check timed out (2s)", latency))
+                Ok(crate::health::HealthStatus::unhealthy(
+                    "sorted_set",
+                    "redis",
+                    "health check timed out (2s)",
+                    latency,
+                ))
             }
         }
     }
@@ -275,7 +302,10 @@ mod tests {
         assert_eq!(store.score("nodes", "node-1").await.unwrap(), Some(100.0));
         assert_eq!(store.score("nodes", "non-existent").await.unwrap(), None);
 
-        let range = store.range_by_score("nodes", 100.0, 180.0, None).await.unwrap();
+        let range = store
+            .range_by_score("nodes", 100.0, 180.0, None)
+            .await
+            .unwrap();
         assert_eq!(range.len(), 2);
         assert_eq!(range[0], ("node-1".to_string(), 100.0));
         assert_eq!(range[1], ("node-3".to_string(), 150.0));

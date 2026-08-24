@@ -14,7 +14,7 @@ type defaultStore struct {
 	metrics    *Metrics
 }
 
-func (s *defaultStore) KV() KVStore          { return s.kv }
+func (s *defaultStore) KV() KVStore                 { return s.kv }
 func (s *defaultStore) Relational() RelationalStore { return s.relational }
 func (s *defaultStore) SortedSet() SortedSetStore   { return s.sortedSet }
 func (s *defaultStore) PubSub() PubSubStore         { return s.pubsub }

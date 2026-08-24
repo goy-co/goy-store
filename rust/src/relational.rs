@@ -56,7 +56,11 @@ impl RelationalStore for MemoryRelationalStore {
     }
 
     async fn is_healthy(&self) -> Result<crate::health::HealthStatus> {
-        Ok(crate::health::HealthStatus::healthy("relational", "memory", 0))
+        Ok(crate::health::HealthStatus::healthy(
+            "relational",
+            "memory",
+            0,
+        ))
     }
 }
 
@@ -139,12 +143,11 @@ impl RelationalStore for PostgresRelationalStore {
         .await?;
 
         for migration in migrations {
-            let applied: Option<(String,)> = sqlx::query_as(
-                "SELECT version FROM schema_migrations WHERE version = $1",
-            )
-            .bind(&migration.version)
-            .fetch_optional(&self.pool)
-            .await?;
+            let applied: Option<(String,)> =
+                sqlx::query_as("SELECT version FROM schema_migrations WHERE version = $1")
+                    .bind(&migration.version)
+                    .fetch_optional(&self.pool)
+                    .await?;
 
             if applied.is_none() {
                 let mut tx = self.pool.begin().await?;
@@ -170,15 +173,29 @@ impl RelationalStore for PostgresRelationalStore {
         match timeout_fut.await {
             Ok(Ok(_)) => {
                 let latency = start.elapsed().as_millis() as u64;
-                Ok(crate::health::HealthStatus::healthy("relational", "postgres", latency))
+                Ok(crate::health::HealthStatus::healthy(
+                    "relational",
+                    "postgres",
+                    latency,
+                ))
             }
             Ok(Err(e)) => {
                 let latency = start.elapsed().as_millis() as u64;
-                Ok(crate::health::HealthStatus::unhealthy("relational", "postgres", &e.to_string(), latency))
+                Ok(crate::health::HealthStatus::unhealthy(
+                    "relational",
+                    "postgres",
+                    &e.to_string(),
+                    latency,
+                ))
             }
             Err(_) => {
                 let latency = start.elapsed().as_millis() as u64;
-                Ok(crate::health::HealthStatus::unhealthy("relational", "postgres", "health check timed out (3s)", latency))
+                Ok(crate::health::HealthStatus::unhealthy(
+                    "relational",
+                    "postgres",
+                    "health check timed out (3s)",
+                    latency,
+                ))
             }
         }
     }

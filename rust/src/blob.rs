@@ -7,8 +7,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use std::time::Duration;
+use tokio::sync::RwLock;
 
 use serde::{Deserialize, Serialize};
 
@@ -68,11 +68,11 @@ impl BlobStore for MemoryBlobStore {
     async fn list(&self, prefix: Option<&str>) -> Result<Vec<String>> {
         let blobs = self.blobs.read().await;
         let mut keys: Vec<String> = blobs.keys().cloned().collect();
-        
+
         if let Some(p) = prefix {
             keys.retain(|k| k.starts_with(p));
         }
-        
+
         keys.sort();
         Ok(keys)
     }
@@ -217,16 +217,28 @@ impl BlobStore for LocalBlobStore {
                 Ok(_) => {
                     let _ = tokio::fs::remove_file(&health_file).await;
                     let latency = start.elapsed().as_millis() as u64;
-                    Ok(crate::health::HealthStatus::healthy("blob", "local", latency))
+                    Ok(crate::health::HealthStatus::healthy(
+                        "blob", "local", latency,
+                    ))
                 }
                 Err(e) => {
                     let latency = start.elapsed().as_millis() as u64;
-                    Ok(crate::health::HealthStatus::unhealthy("blob", "local", &format!("cannot write to blob dir: {}", e), latency))
+                    Ok(crate::health::HealthStatus::unhealthy(
+                        "blob",
+                        "local",
+                        &format!("cannot write to blob dir: {}", e),
+                        latency,
+                    ))
                 }
             },
             Err(e) => {
                 let latency = start.elapsed().as_millis() as u64;
-                Ok(crate::health::HealthStatus::unhealthy("blob", "local", &format!("cannot create blob dir: {}", e), latency))
+                Ok(crate::health::HealthStatus::unhealthy(
+                    "blob",
+                    "local",
+                    &format!("cannot create blob dir: {}", e),
+                    latency,
+                ))
             }
         }
     }
@@ -241,8 +253,14 @@ pub struct S3BlobStore {
 #[cfg(feature = "s3-backend")]
 impl S3BlobStore {
     pub async fn new(config: &crate::config::BlobConfig) -> Result<Self> {
-        let bucket = config.bucket.clone().unwrap_or_else(|| "goy-store".to_string());
-        let region = config.region.clone().unwrap_or_else(|| "us-east-1".to_string());
+        let bucket = config
+            .bucket
+            .clone()
+            .unwrap_or_else(|| "goy-store".to_string());
+        let region = config
+            .region
+            .clone()
+            .unwrap_or_else(|| "us-east-1".to_string());
 
         let mut config_loader = aws_config::defaults(aws_config::BehaviorVersion::latest())
             .region(aws_sdk_s3::config::Region::new(region));
@@ -325,9 +343,7 @@ impl BlobStore for S3BlobStore {
                     },
                 )))
             }
-            Err(aws_sdk_s3::error::SdkError::ServiceError(err))
-                if err.err().is_no_such_key() =>
-            {
+            Err(aws_sdk_s3::error::SdkError::ServiceError(err)) if err.err().is_no_such_key() => {
                 Ok(None)
             }
             Err(e) => Err(anyhow::anyhow!("S3 GetObject failed: {}", e)),
@@ -403,11 +419,21 @@ impl BlobStore for S3BlobStore {
             }
             Ok(Err(e)) => {
                 let latency = start.elapsed().as_millis() as u64;
-                Ok(crate::health::HealthStatus::unhealthy("blob", "s3", &e.to_string(), latency))
+                Ok(crate::health::HealthStatus::unhealthy(
+                    "blob",
+                    "s3",
+                    &e.to_string(),
+                    latency,
+                ))
             }
             Err(_) => {
                 let latency = start.elapsed().as_millis() as u64;
-                Ok(crate::health::HealthStatus::unhealthy("blob", "s3", "health check timed out (3s)", latency))
+                Ok(crate::health::HealthStatus::unhealthy(
+                    "blob",
+                    "s3",
+                    "health check timed out (3s)",
+                    latency,
+                ))
             }
         }
     }
@@ -430,13 +456,19 @@ mod tests {
         };
 
         // Put
-        store.put("certs/node.crt", b"CERT_DATA", Some(meta)).await.unwrap();
+        store
+            .put("certs/node.crt", b"CERT_DATA", Some(meta))
+            .await
+            .unwrap();
 
         // Get
         let (data, retrieved_meta) = store.get("certs/node.crt").await.unwrap().unwrap();
         assert_eq!(data, b"CERT_DATA");
         assert_eq!(retrieved_meta.content_type.as_deref(), Some("text/plain"));
-        assert_eq!(retrieved_meta.custom.get("author").map(|s| s.as_str()), Some("goy"));
+        assert_eq!(
+            retrieved_meta.custom.get("author").map(|s| s.as_str()),
+            Some("goy")
+        );
 
         // List
         let list = store.list(Some("certs/")).await.unwrap();

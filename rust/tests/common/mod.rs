@@ -1,5 +1,5 @@
 use anyhow::Result;
-use goy_store::{config::StoreConfig, GoyStore};
+use goy_store::{GoyStore, config::StoreConfig};
 use std::env;
 
 pub fn get_redis_url() -> String {
@@ -7,12 +7,14 @@ pub fn get_redis_url() -> String {
 }
 
 pub fn get_postgres_url() -> String {
-    env::var("DATABASE_URL").unwrap_or_else(|_| "postgres://test:test@127.0.0.1:5432/goy_store_test?sslmode=disable".to_string())
+    env::var("DATABASE_URL").unwrap_or_else(|_| {
+        "postgres://test:test@127.0.0.1:5432/goy_store_test?sslmode=disable".to_string()
+    })
 }
 
 pub async fn create_test_store() -> Result<GoyStore> {
     let mut config = StoreConfig::default();
-    
+
     // KV
     config.kv.backend = "redis".to_string();
     config.kv.url = Some(get_redis_url());
@@ -46,9 +48,15 @@ pub async fn flush_redis() -> Result<()> {
 
 pub async fn reset_postgres_tables() -> Result<()> {
     let pool = sqlx::PgPool::connect(&get_postgres_url()).await?;
-    sqlx::query("DROP TABLE IF EXISTS schema_migrations CASCADE;").execute(&pool).await?;
-    sqlx::query("DROP TABLE IF EXISTS users CASCADE;").execute(&pool).await?;
-    sqlx::query("DROP TABLE IF EXISTS nodes CASCADE;").execute(&pool).await?;
+    sqlx::query("DROP TABLE IF EXISTS schema_migrations CASCADE;")
+        .execute(&pool)
+        .await?;
+    sqlx::query("DROP TABLE IF EXISTS users CASCADE;")
+        .execute(&pool)
+        .await?;
+    sqlx::query("DROP TABLE IF EXISTS nodes CASCADE;")
+        .execute(&pool)
+        .await?;
     Ok(())
 }
 
@@ -100,8 +108,11 @@ pub async fn setup_minio_bucket() -> Result<goy_store::blob::S3BlobStore> {
             .build(),
     );
 
-    let _ = client.create_bucket().bucket(get_minio_bucket()).send().await;
+    let _ = client
+        .create_bucket()
+        .bucket(get_minio_bucket())
+        .send()
+        .await;
 
     Ok(store)
 }
-
