@@ -158,6 +158,10 @@ impl GoyStore {
                 let path = config.blob.path.as_deref().unwrap_or("./data/blobs");
                 Arc::new(blob::LocalBlobStore::new(path))
             }
+            #[cfg(feature = "s3-backend")]
+            "s3" | "minio" | "r2" => {
+                Arc::new(blob::S3BlobStore::new(&config.blob).await?)
+            }
             _ => Arc::new(blob::MemoryBlobStore::default()),
         };
         let blob_instrumented = Arc::new(metrics::InstrumentedBlobStore::new(

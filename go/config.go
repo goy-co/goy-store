@@ -55,11 +55,14 @@ type PubSubConfig struct {
 
 // BlobConfig represents the configuration for the blob store.
 type BlobConfig struct {
-	Backend  string `toml:"backend"`
-	Endpoint string `toml:"endpoint,omitempty"`
-	Bucket   string `toml:"bucket,omitempty"`
-	Region   string `toml:"region,omitempty"`
-	Path     string `toml:"path,omitempty"`
+	Backend        string `toml:"backend"`
+	Endpoint       string `toml:"endpoint,omitempty"`
+	Bucket         string `toml:"bucket,omitempty"`
+	Region         string `toml:"region,omitempty"`
+	AccessKey      string `toml:"access_key,omitempty"`
+	SecretKey      string `toml:"secret_key,omitempty"`
+	ForcePathStyle bool   `toml:"force_path_style,omitempty"`
+	Path           string `toml:"path,omitempty"`
 }
 
 // LoadConfig loads the configuration from a TOML file.

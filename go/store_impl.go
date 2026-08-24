@@ -158,6 +158,12 @@ func NewStoreWithMetrics(cfg *Config, metrics *Metrics) (GoyStore, error) {
 			path = "./data/blobs"
 		}
 		blob = NewLocalBlobStore(path)
+	case "s3", "minio", "r2":
+		s3Store, err := NewS3BlobStore(context.Background(), cfg.Blob)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize s3 blob store: %w", err)
+		}
+		blob = s3Store
 	case "memory", "":
 		blob = &memoryBlob{blobs: make(map[string]blobData)}
 	default:

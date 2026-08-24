@@ -96,3 +96,50 @@ func resetPostgresTables(t *testing.T) {
 	_, _ = conn.Exec(context.Background(), "DROP TABLE IF EXISTS users CASCADE;")
 	_, _ = conn.Exec(context.Background(), "DROP TABLE IF EXISTS nodes CASCADE;")
 }
+
+func getMinIOEndpoint() string {
+	if u := os.Getenv("MINIO_ENDPOINT"); u != "" {
+		return u
+	}
+	return "http://127.0.0.1:9000"
+}
+
+func getMinIOAccessKey() string {
+	if k := os.Getenv("MINIO_ACCESS_KEY"); k != "" {
+		return k
+	}
+	return "minioadmin"
+}
+
+func getMinIOSecretKey() string {
+	if k := os.Getenv("MINIO_SECRET_KEY"); k != "" {
+		return k
+	}
+	return "minioadmin"
+}
+
+func getMinIOBucket() string {
+	if b := os.Getenv("MINIO_BUCKET"); b != "" {
+		return b
+	}
+	return "goy-store-test"
+}
+
+func setupMinIOBucket(t *testing.T) *goystore.S3BlobStore {
+	cfg := goystore.BlobConfig{
+		Backend:        "s3",
+		Endpoint:       getMinIOEndpoint(),
+		Region:         "us-east-1",
+		Bucket:         getMinIOBucket(),
+		AccessKey:      getMinIOAccessKey(),
+		SecretKey:      getMinIOSecretKey(),
+		ForcePathStyle: true,
+	}
+
+	store, err := goystore.NewS3BlobStore(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("failed to create s3 blob store: %v", err)
+	}
+
+	return store
+}

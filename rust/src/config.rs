@@ -81,6 +81,9 @@ pub struct BlobConfig {
     pub endpoint: Option<String>,
     pub bucket: Option<String>,
     pub region: Option<String>,
+    pub access_key: Option<String>,
+    pub secret_key: Option<String>,
+    pub force_path_style: Option<bool>,
     pub path: Option<String>, // For filesystem backend
 }
 
