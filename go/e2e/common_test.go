@@ -7,6 +7,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	goystore "github.com/goy-co/goy-store/go"
 	"github.com/jackc/pgx/v5"
 	"github.com/redis/go-redis/v9"
