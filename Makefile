@@ -41,7 +41,7 @@ e2e-down:
 # E2E Tests
 test-e2e-rust:
 	@echo "Running Rust E2E integration tests..."
-	cd rust && cargo test --test e2e --all-features
+	cd rust && cargo test --test e2e --all-features -- --test-threads=1
 
 test-e2e-go:
 	@echo "Running Go E2E integration tests..."
