@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
 
+#[derive(Clone)]
 pub struct Message {
     pub channel: String,
     pub payload: Vec<u8>,

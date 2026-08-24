@@ -24,12 +24,23 @@ pub trait SortedSetStore: Send + Sync {
     async fn remove_range(&self, set: &str, min: f64, max: f64) -> Result<u64>;
 }
 
+#[derive(Default, Debug, Clone, Copy, PartialEq, PartialOrd)]
+struct OrderedScore(f64);
+
+impl Eq for OrderedScore {}
+
+impl Ord for OrderedScore {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.total_cmp(&other.0)
+    }
+}
+
 #[derive(Default)]
 struct InnerSet {
     // Maps score to a list of members with that score
-    scores: BTreeMap<f64, Vec<String>>,
+    scores: BTreeMap<OrderedScore, Vec<String>>,
     // Maps member to their current score for O(1) lookups and removals
-    member_scores: std::collections::HashMap<String, f64>,
+    member_scores: std::collections::HashMap<String, OrderedScore>,
 }
 
 /// In-memory implementation of SortedSetStore for testing and local development.
@@ -43,19 +54,21 @@ impl SortedSetStore for MemorySortedSetStore {
     async fn add(&self, set: &str, member: &str, score: f64) -> Result<()> {
         let mut sets = self.sets.write().await;
         let inner = sets.entry(set.to_string()).or_default();
+        let ord_score = OrderedScore(score);
         
         // Remove old score if member already exists
         if let Some(old_score) = inner.member_scores.get(member) {
             if let Some(members) = inner.scores.get_mut(old_score) {
                 members.retain(|m| m != member);
                 if members.is_empty() {
-                    inner.scores.remove(old_score);
+                    let old = *old_score;
+                    inner.scores.remove(&old);
                 }
             }
         }
         
-        inner.member_scores.insert(member.to_string(), score);
-        inner.scores.entry(score).or_default().push(member.to_string());
+        inner.member_scores.insert(member.to_string(), ord_score);
+        inner.scores.entry(ord_score).or_default().push(member.to_string());
         
         Ok(())
     }
@@ -86,9 +99,9 @@ impl SortedSetStore for MemorySortedSetStore {
         let mut result = Vec::new();
         
         if let Some(inner) = sets.get(set) {
-            for (&score, members) in inner.scores.range(min..=max) {
+            for (&score, members) in inner.scores.range(OrderedScore(min)..=OrderedScore(max)) {
                 for member in members {
-                    result.push((member.clone(), score));
+                    result.push((member.clone(), score.0));
                     if let Some(limit) = limit {
                         if result.len() >= limit {
                             return Ok(result);
@@ -115,7 +128,7 @@ impl SortedSetStore for MemorySortedSetStore {
         let mut removed_count = 0;
         
         if let Some(inner) = sets.get_mut(set) {
-            let scores_to_remove: Vec<f64> = inner.scores.keys().copied().filter(|&s| s >= min && s <= max).collect();
+            let scores_to_remove: Vec<OrderedScore> = inner.scores.keys().copied().filter(|&s| s.0 >= min && s.0 <= max).collect();
             
             for score in scores_to_remove {
                 if let Some(members) = inner.scores.remove(&score) {
@@ -127,6 +140,6 @@ impl SortedSetStore for MemorySortedSetStore {
             }
         }
         
-        Ok((removed_count))
+        Ok(removed_count)
     }
 }

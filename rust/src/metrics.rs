@@ -24,7 +24,7 @@ impl StoreMetrics {
         )?;
 
         let operation_duration_seconds = register_histogram_vec_with_registry!(
-            Opts::new("goy_store_operation_duration_seconds", "Duration of store operations in seconds"),
+            prometheus::HistogramOpts::new("goy_store_operation_duration_seconds", "Duration of store operations in seconds"),
             &["contract", "operation", "backend"],
             registry
         )?;

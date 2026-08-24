@@ -58,3 +58,83 @@ impl KvStore for MemoryKvStore {
         }
     }
 }
+
+#[cfg(feature = "redis-backend")]
+pub struct RedisKvStore {
+    conn: redis::aio::ConnectionManager,
+}
+
+#[cfg(feature = "redis-backend")]
+impl RedisKvStore {
+    pub async fn new(url: &str) -> Result<Self> {
+        let client = redis::Client::open(url)?;
+        let conn = redis::aio::ConnectionManager::new(client).await?;
+        Ok(Self { conn })
+    }
+
+    pub fn from_connection_manager(conn: redis::aio::ConnectionManager) -> Self {
+        Self { conn }
+    }
+}
+
+#[cfg(feature = "redis-backend")]
+#[async_trait]
+impl KvStore for RedisKvStore {
+    async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
+        let mut conn = self.conn.clone();
+        let result: Option<Vec<u8>> = redis::AsyncCommands::get(&mut conn, key).await?;
+        Ok(result)
+    }
+
+    async fn set(&self, key: &str, value: &[u8], ttl: Option<Duration>) -> Result<()> {
+        let mut conn = self.conn.clone();
+        if let Some(ttl) = ttl {
+            let seconds = ttl.as_secs();
+            if seconds > 0 {
+                let () = redis::AsyncCommands::set_ex(&mut conn, key, value, seconds).await?;
+            } else {
+                let millis = ttl.as_millis() as u64;
+                let () = redis::cmd("PSETEX")
+                    .arg(key)
+                    .arg(millis)
+                    .arg(value)
+                    .query_async(&mut conn)
+                    .await?;
+            }
+        } else {
+            let () = redis::AsyncCommands::set(&mut conn, key, value).await?;
+        }
+        Ok(())
+    }
+
+    async fn delete(&self, key: &str) -> Result<()> {
+        let mut conn = self.conn.clone();
+        let () = redis::AsyncCommands::del(&mut conn, key).await?;
+        Ok(())
+    }
+
+    async fn exists(&self, key: &str) -> Result<bool> {
+        let mut conn = self.conn.clone();
+        let exists: bool = redis::AsyncCommands::exists(&mut conn, key).await?;
+        Ok(exists)
+    }
+
+    async fn set_if_not_exists(&self, key: &str, value: &[u8], ttl: Option<Duration>) -> Result<bool> {
+        let mut conn = self.conn.clone();
+        if let Some(ttl) = ttl {
+            let seconds = ttl.as_secs();
+            let mut cmd = redis::cmd("SET");
+            cmd.arg(key).arg(value).arg("NX");
+            if seconds > 0 {
+                cmd.arg("EX").arg(seconds);
+            } else {
+                cmd.arg("PX").arg(ttl.as_millis() as u64);
+            }
+            let res: Option<String> = cmd.query_async(&mut conn).await?;
+            Ok(res.is_some())
+        } else {
+            let set: bool = redis::AsyncCommands::set_nx(&mut conn, key, value).await?;
+            Ok(set)
+        }
+    }
+}

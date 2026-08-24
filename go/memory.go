@@ -218,7 +218,7 @@ func (m *memoryPubSub) Unsubscribe(_ context.Context, channels []string) error {
 	defer m.mu.Unlock()
 	
 	for _, channel := range channels {
-		if subs, ok := m.subscribers[channel]; ok {
+		if _, ok := m.subscribers[channel]; ok {
 			// Note: In a real implementation, we'd need to track which channel belongs to which subscriber
 			// For simplicity, we just clear the channel map here or leave it to GC
 			delete(m.subscribers, channel)

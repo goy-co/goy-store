@@ -28,9 +28,6 @@ pub struct Migration {
 pub trait RelationalStore: Send + Sync {
     async fn query(&self, sql: &str, params: &[Param]) -> Result<Rows>;
     async fn execute(&self, sql: &str, params: &[Param]) -> Result<u64>;
-    async fn transaction<F, T>(&self, f: F) -> Result<T>
-    where
-        F: FnOnce(&Transaction) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<T>> + Send>> + Send + Sync;
     async fn migrate(&self, migrations: &[Migration]) -> Result<()>;
 }
 
@@ -51,15 +48,99 @@ impl RelationalStore for MemoryRelationalStore {
         Ok(0)
     }
 
-    async fn transaction<F, T>(&self, _f: F) -> Result<T>
-    where
-        F: FnOnce(&Transaction) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<T>> + Send>> + Send + Sync,
-    {
-        // In a real implementation, this would manage a transaction context
-        unimplemented!("MemoryRelationalStore transaction not fully implemented")
+    async fn migrate(&self, _migrations: &[Migration]) -> Result<()> {
+        Ok(())
+    }
+}
+
+#[cfg(feature = "sqlx-backend")]
+pub struct PostgresRelationalStore {
+    pool: sqlx::PgPool,
+}
+
+#[cfg(feature = "sqlx-backend")]
+impl PostgresRelationalStore {
+    pub async fn new(url: &str) -> Result<Self> {
+        let pool = sqlx::postgres::PgPoolOptions::new()
+            .max_connections(20)
+            .connect(url)
+            .await?;
+        Ok(Self { pool })
     }
 
-    async fn migrate(&self, _migrations: &[Migration]) -> Result<()> {
+    pub fn from_pool(pool: sqlx::PgPool) -> Self {
+        Self { pool }
+    }
+}
+
+#[cfg(feature = "sqlx-backend")]
+#[async_trait]
+impl RelationalStore for PostgresRelationalStore {
+    async fn query(&self, sql: &str, _params: &[Param]) -> Result<Rows> {
+        use sqlx::Row;
+        let rows = sqlx::query(sql).fetch_all(&self.pool).await?;
+        let mut result_columns = Vec::new();
+        let mut result_rows = Vec::new();
+
+        if let Some(first_row) = rows.first() {
+            use sqlx::Column;
+            for col in first_row.columns() {
+                result_columns.push(col.name().to_string());
+            }
+        }
+
+        for row in rows {
+            let mut row_data = Vec::new();
+            for i in 0..result_columns.len() {
+                // Fetch raw bytes or string representation
+                let val: Option<Vec<u8>> = row.try_get(i).ok();
+                row_data.push(val.unwrap_or_default());
+            }
+            result_rows.push(row_data);
+        }
+
+        Ok(Rows {
+            columns: result_columns,
+            rows: result_rows,
+        })
+    }
+
+    async fn execute(&self, sql: &str, _params: &[Param]) -> Result<u64> {
+        let res = sqlx::query(sql).execute(&self.pool).await?;
+        Ok(res.rows_affected())
+    }
+
+    async fn migrate(&self, migrations: &[Migration]) -> Result<()> {
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                version VARCHAR(255) PRIMARY KEY,
+                applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        for migration in migrations {
+            let applied: Option<(String,)> = sqlx::query_as(
+                "SELECT version FROM schema_migrations WHERE version = $1",
+            )
+            .bind(&migration.version)
+            .fetch_optional(&self.pool)
+            .await?;
+
+            if applied.is_none() {
+                let mut tx = self.pool.begin().await?;
+                sqlx::query(&migration.up_sql).execute(&mut *tx).await?;
+                sqlx::query("INSERT INTO schema_migrations (version) VALUES ($1)")
+                    .bind(&migration.version)
+                    .execute(&mut *tx)
+                    .await?;
+                tx.commit().await?;
+            }
+        }
+
         Ok(())
     }
 }

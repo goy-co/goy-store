@@ -34,13 +34,31 @@ pub struct GoyStore {
 impl GoyStore {
     /// Creates a new GoyStore instance from the provided configuration.
     pub async fn from_config(config: &StoreConfig) -> Result<Self> {
-        // In a real implementation, this would instantiate the appropriate
-        // backend implementations based on the config.
-        // For now, we return a memory-based implementation for all contracts.
-        
+        let kv: Arc<dyn KvStore> = match config.kv.backend.as_str() {
+            #[cfg(feature = "redis-backend")]
+            "redis" => {
+                let url = config.kv.url.as_deref().unwrap_or("redis://127.0.0.1:6379");
+                Arc::new(kv::RedisKvStore::new(url).await?)
+            }
+            _ => Arc::new(kv::MemoryKvStore::default()),
+        };
+
+        let relational: Arc<dyn RelationalStore> = match config.relational.backend.as_str() {
+            #[cfg(feature = "sqlx-backend")]
+            "postgres" => {
+                let url = config
+                    .relational
+                    .url
+                    .as_deref()
+                    .unwrap_or("postgres://postgres:postgres@127.0.0.1:5432/goy");
+                Arc::new(relational::PostgresRelationalStore::new(url).await?)
+            }
+            _ => Arc::new(relational::MemoryRelationalStore::default()),
+        };
+
         Ok(Self {
-            kv: Arc::new(kv::MemoryKvStore::default()),
-            relational: Arc::new(relational::MemoryRelationalStore::default()),
+            kv,
+            relational,
             sorted_set: Arc::new(sorted_set::MemorySortedSetStore::default()),
             pubsub: Arc::new(pubsub::MemoryPubSubStore::default()),
             blob: Arc::new(blob::MemoryBlobStore::default()),
