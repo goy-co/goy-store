@@ -17,6 +17,7 @@ type GoyStore interface {
 	SortedSet() SortedSetStore
 	PubSub() PubSubStore
 	Blob() BlobStore
+	Metrics() *Metrics
 }
 
 // KVStore defines the contract for ephemeral key-value operations.

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func TestMemoryKVStore(t *testing.T) {
@@ -294,5 +296,57 @@ func TestRedisPubSubStore_Config(t *testing.T) {
 	}
 	if store == nil || store.PubSub() == nil {
 		t.Fatalf("expected non-nil PubSub store")
+	}
+}
+
+func TestMetricsTracking(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	metrics := RegisterMetrics(reg)
+
+	cfg := DefaultConfig()
+	store, err := NewStoreWithMetrics(cfg, metrics)
+	if err != nil {
+		t.Fatalf("NewStoreWithMetrics failed: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Perform KV ops
+	_ = store.KV().Set(ctx, "metrics:key", []byte("1"), nil)
+	_, _, _ = store.KV().Get(ctx, "metrics:key")
+
+	// Perform SortedSet ops
+	_ = store.SortedSet().Add(ctx, "metrics:set", "m1", 1.0)
+	_, _ = store.SortedSet().Score(ctx, "metrics:set", "m1")
+
+	// Perform Blob ops
+	_ = store.Blob().Put(ctx, "metrics/file.txt", []byte("data"), nil)
+	_, _, _, _ = store.Blob().Get(ctx, "metrics/file.txt")
+
+	// Perform PubSub ops
+	_ = store.PubSub().Publish(ctx, "metrics:chan", []byte("msg"))
+
+	// Gather metrics
+	mfs, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("reg.Gather failed: %v", err)
+	}
+
+	names := make(map[string]bool)
+	for _, mf := range mfs {
+		names[mf.GetName()] = true
+	}
+
+	expected := []string{
+		"goy_store_kv_operation_duration_seconds",
+		"goy_store_sorted_set_operation_duration_seconds",
+		"goy_store_blob_operation_duration_seconds",
+		"goy_store_pubsub_operation_duration_seconds",
+	}
+
+	for _, exp := range expected {
+		if !names[exp] {
+			t.Errorf("expected metric %s to be registered and observed", exp)
+		}
 	}
 }

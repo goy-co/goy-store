@@ -11,6 +11,7 @@ type defaultStore struct {
 	sortedSet  SortedSetStore
 	pubsub     PubSubStore
 	blob       BlobStore
+	metrics    *Metrics
 }
 
 func (s *defaultStore) KV() KVStore          { return s.kv }
@@ -18,11 +19,20 @@ func (s *defaultStore) Relational() RelationalStore { return s.relational }
 func (s *defaultStore) SortedSet() SortedSetStore   { return s.sortedSet }
 func (s *defaultStore) PubSub() PubSubStore         { return s.pubsub }
 func (s *defaultStore) Blob() BlobStore             { return s.blob }
+func (s *defaultStore) Metrics() *Metrics           { return s.metrics }
 
-// NewStore creates a new GoyStore instance from the provided configuration.
+// NewStore creates a new GoyStore instance from the provided configuration with default metrics.
 func NewStore(cfg *Config) (GoyStore, error) {
+	return NewStoreWithMetrics(cfg, DefaultMetrics())
+}
+
+// NewStoreWithMetrics creates a new GoyStore instance from the provided configuration with custom metrics.
+func NewStoreWithMetrics(cfg *Config, metrics *Metrics) (GoyStore, error) {
 	if cfg == nil {
 		cfg = DefaultConfig()
+	}
+	if metrics == nil {
+		metrics = DefaultMetrics()
 	}
 
 	var kv KVStore
@@ -104,10 +114,11 @@ func NewStore(cfg *Config) (GoyStore, error) {
 	}
 
 	return &defaultStore{
-		kv:         kv,
-		relational: relational,
-		sortedSet:  sortedSet,
-		pubsub:     pubsub,
-		blob:       blob,
+		kv:         WrapKVWithMetrics(kv, metrics, cfg.KV.Backend),
+		relational: WrapRelationalWithMetrics(relational, metrics, cfg.Relational.Backend),
+		sortedSet:  WrapSortedSetWithMetrics(sortedSet, metrics, cfg.SortedSet.Backend),
+		pubsub:     WrapPubSubWithMetrics(pubsub, metrics, cfg.PubSub.Backend),
+		blob:       WrapBlobWithMetrics(blob, metrics, cfg.Blob.Backend),
+		metrics:    metrics,
 	}, nil
 }

@@ -19,6 +19,8 @@ pub use pubsub::PubSubStore;
 pub use blob::BlobStore;
 pub use config::StoreConfig;
 
+pub use metrics::StoreMetrics;
+
 use std::sync::Arc;
 use anyhow::Result;
 
@@ -29,11 +31,18 @@ pub struct GoyStore {
     pub sorted_set: Arc<dyn SortedSetStore>,
     pub pubsub: Arc<dyn PubSubStore>,
     pub blob: Arc<dyn BlobStore>,
+    pub metrics: Arc<StoreMetrics>,
 }
 
 impl GoyStore {
     /// Creates a new GoyStore instance from the provided configuration.
     pub async fn from_config(config: &StoreConfig) -> Result<Self> {
+        let metrics = Arc::new(StoreMetrics::default());
+        Self::from_config_with_metrics(config, metrics).await
+    }
+
+    /// Creates a new GoyStore instance with a specific StoreMetrics registry.
+    pub async fn from_config_with_metrics(config: &StoreConfig, metrics: Arc<StoreMetrics>) -> Result<Self> {
         #[cfg(feature = "redis-backend")]
         let (redis_conn, redis_client): (Option<redis::aio::ConnectionManager>, Option<redis::Client>) = {
             if config.kv.backend == "redis"
@@ -55,7 +64,7 @@ impl GoyStore {
             }
         };
 
-        let kv: Arc<dyn KvStore> = match config.kv.backend.as_str() {
+        let kv_raw: Arc<dyn KvStore> = match config.kv.backend.as_str() {
             #[cfg(feature = "redis-backend")]
             "redis" => {
                 let conn = redis_conn.clone().expect("redis connection manager exists");
@@ -63,8 +72,13 @@ impl GoyStore {
             }
             _ => Arc::new(kv::MemoryKvStore::default()),
         };
+        let kv = Arc::new(metrics::InstrumentedKvStore::new(
+            kv_raw,
+            metrics.clone(),
+            &config.kv.backend,
+        ));
 
-        let sorted_set: Arc<dyn SortedSetStore> = match config.sorted_set.backend.as_str() {
+        let sorted_set_raw: Arc<dyn SortedSetStore> = match config.sorted_set.backend.as_str() {
             #[cfg(feature = "redis-backend")]
             "redis" => {
                 let conn = redis_conn.clone().expect("redis connection manager exists");
@@ -72,8 +86,13 @@ impl GoyStore {
             }
             _ => Arc::new(sorted_set::MemorySortedSetStore::default()),
         };
+        let sorted_set = Arc::new(metrics::InstrumentedSortedSetStore::new(
+            sorted_set_raw,
+            metrics.clone(),
+            &config.sorted_set.backend,
+        ));
 
-        let pubsub: Arc<dyn PubSubStore> = match config.pubsub.backend.as_str() {
+        let pubsub_raw: Arc<dyn PubSubStore> = match config.pubsub.backend.as_str() {
             #[cfg(feature = "redis-backend")]
             "redis" => {
                 let conn = redis_conn.expect("redis connection manager exists");
@@ -82,8 +101,13 @@ impl GoyStore {
             }
             _ => Arc::new(pubsub::MemoryPubSubStore::default()),
         };
+        let pubsub = Arc::new(metrics::InstrumentedPubSubStore::new(
+            pubsub_raw,
+            metrics.clone(),
+            &config.pubsub.backend,
+        ));
 
-        let relational: Arc<dyn RelationalStore> = match config.relational.backend.as_str() {
+        let relational_raw: Arc<dyn RelationalStore> = match config.relational.backend.as_str() {
             #[cfg(feature = "sqlx-backend")]
             "postgres" => {
                 let url = config
@@ -95,14 +119,24 @@ impl GoyStore {
             }
             _ => Arc::new(relational::MemoryRelationalStore::default()),
         };
+        let relational = Arc::new(metrics::InstrumentedRelationalStore::new(
+            relational_raw,
+            metrics.clone(),
+            &config.relational.backend,
+        ));
 
-        let blob: Arc<dyn BlobStore> = match config.blob.backend.as_str() {
+        let blob_raw: Arc<dyn BlobStore> = match config.blob.backend.as_str() {
             "local" | "filesystem" => {
                 let path = config.blob.path.as_deref().unwrap_or("./data/blobs");
                 Arc::new(blob::LocalBlobStore::new(path))
             }
             _ => Arc::new(blob::MemoryBlobStore::default()),
         };
+        let blob = Arc::new(metrics::InstrumentedBlobStore::new(
+            blob_raw,
+            metrics.clone(),
+            &config.blob.backend,
+        ));
 
         Ok(Self {
             kv,
@@ -110,6 +144,7 @@ impl GoyStore {
             sorted_set,
             pubsub,
             blob,
+            metrics,
         })
     }
 }

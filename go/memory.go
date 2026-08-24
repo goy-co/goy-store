@@ -14,6 +14,7 @@ type MemoryStore struct {
 	sortedSet   *memorySortedSet
 	pubsub      *memoryPubSub
 	blob        *memoryBlob
+	metrics     *Metrics
 }
 
 // NewMemoryStore creates a new in-memory GoyStore.
@@ -24,6 +25,7 @@ func NewMemoryStore() GoyStore {
 		sortedSet:  &memorySortedSet{sets: make(map[string]map[string]float64)},
 		pubsub:     &memoryPubSub{subscribers: make(map[string]map[chan Message]struct{})},
 		blob:       &memoryBlob{blobs: make(map[string]blobData)},
+		metrics:    DefaultMetrics(),
 	}
 }
 
@@ -32,6 +34,7 @@ func (s *MemoryStore) Relational() RelationalStore { return s.relational }
 func (s *MemoryStore) SortedSet() SortedSetStore   { return s.sortedSet }
 func (s *MemoryStore) PubSub() PubSubStore         { return s.pubsub }
 func (s *MemoryStore) Blob() BlobStore             { return s.blob }
+func (s *MemoryStore) Metrics() *Metrics           { return s.metrics }
 
 // --- KV Store ---
 
