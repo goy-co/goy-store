@@ -25,6 +25,8 @@ pub struct StoreMetrics {
     pub blob_operation_duration_seconds: HistogramVec,
     pub pubsub_operation_duration_seconds: HistogramVec,
     pub errors_total: CounterVec,
+    pub retries_total: CounterVec,
+    pub circuit_breaker_state: GaugeVec,
     pub pool_active_connections: GaugeVec,
     pub pool_idle_connections: GaugeVec,
 }
@@ -82,6 +84,18 @@ impl StoreMetrics {
             registry
         )?;
 
+        let retries_total = register_counter_vec_with_registry!(
+            Opts::new("goy_store_retries_total", "Total number of store operation retries"),
+            &["contract", "operation", "backend"],
+            registry
+        )?;
+
+        let circuit_breaker_state = register_gauge_vec_with_registry!(
+            Opts::new("goy_store_circuit_breaker_state", "Circuit breaker state (0=closed, 1=open, 2=half-open)"),
+            &["contract", "backend"],
+            registry
+        )?;
+
         let pool_active_connections = register_gauge_vec_with_registry!(
             Opts::new("goy_store_pool_active_connections", "Number of active pool connections"),
             &["backend"],
@@ -101,6 +115,8 @@ impl StoreMetrics {
             blob_operation_duration_seconds,
             pubsub_operation_duration_seconds,
             errors_total,
+            retries_total,
+            circuit_breaker_state,
             pool_active_connections,
             pool_idle_connections,
         })

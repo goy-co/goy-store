@@ -11,6 +11,40 @@ pub struct StoreConfig {
     pub sorted_set: SortedSetConfig,
     pub pubsub: PubSubConfig,
     pub blob: BlobConfig,
+    #[serde(default)]
+    pub resilience: ResilienceConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResilienceConfig {
+    #[serde(default = "default_max_retries")]
+    pub max_retries: u32,
+    #[serde(default = "default_base_backoff_ms")]
+    pub base_backoff_ms: u64,
+    #[serde(default = "default_circuit_breaker_threshold")]
+    pub circuit_breaker_threshold: u32,
+    #[serde(default = "default_circuit_breaker_reset_seconds")]
+    pub circuit_breaker_reset_seconds: u64,
+    #[serde(default = "default_operation_timeout_seconds")]
+    pub operation_timeout_seconds: u64,
+}
+
+fn default_max_retries() -> u32 { 3 }
+fn default_base_backoff_ms() -> u64 { 100 }
+fn default_circuit_breaker_threshold() -> u32 { 5 }
+fn default_circuit_breaker_reset_seconds() -> u64 { 30 }
+fn default_operation_timeout_seconds() -> u64 { 5 }
+
+impl Default for ResilienceConfig {
+    fn default() -> Self {
+        Self {
+            max_retries: default_max_retries(),
+            base_backoff_ms: default_base_backoff_ms(),
+            circuit_breaker_threshold: default_circuit_breaker_threshold(),
+            circuit_breaker_reset_seconds: default_circuit_breaker_reset_seconds(),
+            operation_timeout_seconds: default_operation_timeout_seconds(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

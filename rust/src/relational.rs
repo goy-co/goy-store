@@ -6,6 +6,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 
+#[derive(Clone)]
 pub struct Param {
     // Simplified parameter representation
     pub value: Vec<u8>,
@@ -18,6 +19,7 @@ pub struct Rows {
 
 pub struct Transaction;
 
+#[derive(Clone)]
 pub struct Migration {
     pub version: String,
     pub up_sql: String,

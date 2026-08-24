@@ -113,12 +113,20 @@ func NewStoreWithMetrics(cfg *Config, metrics *Metrics) (GoyStore, error) {
 		return nil, fmt.Errorf("unsupported pubsub backend: %s", cfg.PubSub.Backend)
 	}
 
+	// 1. Wrap with metrics
+	kvMetric := WrapKVWithMetrics(kv, metrics, cfg.KV.Backend)
+	relationalMetric := WrapRelationalWithMetrics(relational, metrics, cfg.Relational.Backend)
+	sortedSetMetric := WrapSortedSetWithMetrics(sortedSet, metrics, cfg.SortedSet.Backend)
+	pubsubMetric := WrapPubSubWithMetrics(pubsub, metrics, cfg.PubSub.Backend)
+	blobMetric := WrapBlobWithMetrics(blob, metrics, cfg.Blob.Backend)
+
+	// 2. Wrap with resilience
 	return &defaultStore{
-		kv:         WrapKVWithMetrics(kv, metrics, cfg.KV.Backend),
-		relational: WrapRelationalWithMetrics(relational, metrics, cfg.Relational.Backend),
-		sortedSet:  WrapSortedSetWithMetrics(sortedSet, metrics, cfg.SortedSet.Backend),
-		pubsub:     WrapPubSubWithMetrics(pubsub, metrics, cfg.PubSub.Backend),
-		blob:       WrapBlobWithMetrics(blob, metrics, cfg.Blob.Backend),
+		kv:         WrapKVWithResilience(kvMetric, cfg.Resilience, metrics, cfg.KV.Backend),
+		relational: WrapRelationalWithResilience(relationalMetric, cfg.Resilience, metrics, cfg.Relational.Backend),
+		sortedSet:  WrapSortedSetWithResilience(sortedSetMetric, cfg.Resilience, metrics, cfg.SortedSet.Backend),
+		pubsub:     WrapPubSubWithResilience(pubsubMetric, cfg.Resilience, metrics, cfg.PubSub.Backend),
+		blob:       WrapBlobWithResilience(blobMetric, cfg.Resilience, metrics, cfg.Blob.Backend),
 		metrics:    metrics,
 	}, nil
 }

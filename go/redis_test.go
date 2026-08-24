@@ -2,6 +2,7 @@ package goystore
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -348,5 +349,82 @@ func TestMetricsTracking(t *testing.T) {
 		if !names[exp] {
 			t.Errorf("expected metric %s to be registered and observed", exp)
 		}
+	}
+}
+
+func TestResilienceAndCircuitBreaker(t *testing.T) {
+	cb := NewCircuitBreaker(2, 50*time.Millisecond)
+
+	if err := cb.CanExecute(); err != nil {
+		t.Fatalf("expected can execute on closed cb: %v", err)
+	}
+
+	cb.OnFailure()
+	if err := cb.CanExecute(); err != nil {
+		t.Fatalf("expected can execute after 1 failure: %v", err)
+	}
+
+	cb.OnFailure()
+	// Should be open now
+	if err := cb.CanExecute(); err == nil {
+		t.Fatalf("expected circuit breaker to be OPEN")
+	}
+
+	time.Sleep(60 * time.Millisecond)
+	// Should be half-open
+	if err := cb.CanExecute(); err != nil {
+		t.Fatalf("expected half-open cb to allow probe: %v", err)
+	}
+
+	cb.OnSuccess()
+	// Should be closed
+	if err := cb.CanExecute(); err != nil {
+		t.Fatalf("expected closed cb after success: %v", err)
+	}
+}
+
+func TestResilientExecutorRetry(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	metrics := RegisterMetrics(reg)
+
+	cfg := ResilienceConfig{
+		MaxRetries:                 2,
+		BaseBackoffMS:              10,
+		CircuitBreakerThreshold:    5,
+		CircuitBreakerResetSeconds: 10,
+		OperationTimeoutSeconds:    2,
+	}
+
+	exec := NewResilientExecutor(cfg, metrics, "test", "mem")
+
+	attempt := 0
+	ctx := context.Background()
+	res, err := ExecuteWithResilience(exec, ctx, "retry_op", func(c context.Context) (int, error) {
+		attempt++
+		if attempt == 1 {
+			return 0, errors.New("temporary error")
+		}
+		return 100, nil
+	})
+
+	if err != nil {
+		t.Fatalf("expected success on retry: %v", err)
+	}
+	if res != 100 {
+		t.Fatalf("expected result 100, got %d", res)
+	}
+
+	mfs, _ := reg.Gather()
+	var retries float64
+	for _, mf := range mfs {
+		if mf.GetName() == "goy_store_retries_total" {
+			for _, m := range mf.GetMetric() {
+				retries += m.GetCounter().GetValue()
+			}
+		}
+	}
+
+	if retries != 1 {
+		t.Fatalf("expected 1 retry recorded, got %v", retries)
 	}
 }

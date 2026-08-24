@@ -11,6 +11,7 @@ pub mod pubsub;
 pub mod blob;
 pub mod config;
 pub mod metrics;
+pub mod resilience;
 
 pub use kv::KvStore;
 pub use relational::RelationalStore;
@@ -20,6 +21,7 @@ pub use blob::BlobStore;
 pub use config::StoreConfig;
 
 pub use metrics::StoreMetrics;
+pub use resilience::{CircuitBreaker, ResilientKvStore, ResilientRelationalStore, ResilientSortedSetStore, ResilientBlobStore, ResilientPubSubStore};
 
 use std::sync::Arc;
 use anyhow::Result;
@@ -72,8 +74,14 @@ impl GoyStore {
             }
             _ => Arc::new(kv::MemoryKvStore::default()),
         };
-        let kv = Arc::new(metrics::InstrumentedKvStore::new(
+        let kv_instrumented = Arc::new(metrics::InstrumentedKvStore::new(
             kv_raw,
+            metrics.clone(),
+            &config.kv.backend,
+        ));
+        let kv = Arc::new(resilience::ResilientKvStore::new(
+            kv_instrumented,
+            config.resilience.clone(),
             metrics.clone(),
             &config.kv.backend,
         ));
@@ -86,8 +94,14 @@ impl GoyStore {
             }
             _ => Arc::new(sorted_set::MemorySortedSetStore::default()),
         };
-        let sorted_set = Arc::new(metrics::InstrumentedSortedSetStore::new(
+        let sorted_set_instrumented = Arc::new(metrics::InstrumentedSortedSetStore::new(
             sorted_set_raw,
+            metrics.clone(),
+            &config.sorted_set.backend,
+        ));
+        let sorted_set = Arc::new(resilience::ResilientSortedSetStore::new(
+            sorted_set_instrumented,
+            config.resilience.clone(),
             metrics.clone(),
             &config.sorted_set.backend,
         ));
@@ -101,8 +115,14 @@ impl GoyStore {
             }
             _ => Arc::new(pubsub::MemoryPubSubStore::default()),
         };
-        let pubsub = Arc::new(metrics::InstrumentedPubSubStore::new(
+        let pubsub_instrumented = Arc::new(metrics::InstrumentedPubSubStore::new(
             pubsub_raw,
+            metrics.clone(),
+            &config.pubsub.backend,
+        ));
+        let pubsub = Arc::new(resilience::ResilientPubSubStore::new(
+            pubsub_instrumented,
+            config.resilience.clone(),
             metrics.clone(),
             &config.pubsub.backend,
         ));
@@ -119,8 +139,14 @@ impl GoyStore {
             }
             _ => Arc::new(relational::MemoryRelationalStore::default()),
         };
-        let relational = Arc::new(metrics::InstrumentedRelationalStore::new(
+        let relational_instrumented = Arc::new(metrics::InstrumentedRelationalStore::new(
             relational_raw,
+            metrics.clone(),
+            &config.relational.backend,
+        ));
+        let relational = Arc::new(resilience::ResilientRelationalStore::new(
+            relational_instrumented,
+            config.resilience.clone(),
             metrics.clone(),
             &config.relational.backend,
         ));
@@ -132,8 +158,14 @@ impl GoyStore {
             }
             _ => Arc::new(blob::MemoryBlobStore::default()),
         };
-        let blob = Arc::new(metrics::InstrumentedBlobStore::new(
+        let blob_instrumented = Arc::new(metrics::InstrumentedBlobStore::new(
             blob_raw,
+            metrics.clone(),
+            &config.blob.backend,
+        ));
+        let blob = Arc::new(resilience::ResilientBlobStore::new(
+            blob_instrumented,
+            config.resilience.clone(),
             metrics.clone(),
             &config.blob.backend,
         ));

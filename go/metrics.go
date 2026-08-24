@@ -17,6 +17,8 @@ type Metrics struct {
 	BlobOperationDuration      *prometheus.HistogramVec
 	PubSubOperationDuration    *prometheus.HistogramVec
 	ErrorsTotal                *prometheus.CounterVec
+	RetriesTotal               *prometheus.CounterVec
+	CircuitBreakerState        *prometheus.GaugeVec
 	PoolActiveConnections      *prometheus.GaugeVec
 	PoolIdleConnections        *prometheus.GaugeVec
 }
@@ -78,6 +80,20 @@ func RegisterMetrics(reg prometheus.Registerer) *Metrics {
 				Help: "Total number of store errors",
 			},
 			[]string{"contract", "operation", "backend", "error_type"},
+		),
+		RetriesTotal: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "goy_store_retries_total",
+				Help: "Total number of store operation retries",
+			},
+			[]string{"contract", "operation", "backend"},
+		),
+		CircuitBreakerState: factory.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "goy_store_circuit_breaker_state",
+				Help: "Circuit breaker state (0=closed, 1=open, 2=half-open)",
+			},
+			[]string{"contract", "backend"},
 		),
 		PoolActiveConnections: factory.NewGaugeVec(
 			prometheus.GaugeOpts{
