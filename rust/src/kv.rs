@@ -75,6 +75,10 @@ impl RedisKvStore {
     pub fn from_connection_manager(conn: redis::aio::ConnectionManager) -> Self {
         Self { conn }
     }
+
+    pub fn connection_manager(&self) -> redis::aio::ConnectionManager {
+        self.conn.clone()
+    }
 }
 
 #[cfg(feature = "redis-backend")]

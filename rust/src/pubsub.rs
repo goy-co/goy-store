@@ -71,3 +71,115 @@ impl PubSubStore for MemoryPubSubStore {
         Ok(())
     }
 }
+
+#[cfg(feature = "redis-backend")]
+pub struct RedisPubSubStore {
+    conn: redis::aio::ConnectionManager,
+    client: redis::Client,
+    channels: Arc<RwLock<HashMap<String, broadcast::Sender<Message>>>>,
+}
+
+#[cfg(feature = "redis-backend")]
+impl RedisPubSubStore {
+    pub async fn new(url: &str) -> Result<Self> {
+        let client = redis::Client::open(url)?;
+        let conn = redis::aio::ConnectionManager::new(client.clone()).await?;
+        Ok(Self {
+            conn,
+            client,
+            channels: Arc::new(RwLock::new(HashMap::new())),
+        })
+    }
+
+    pub fn from_connection_manager(conn: redis::aio::ConnectionManager, client: redis::Client) -> Self {
+        Self {
+            conn,
+            client,
+            channels: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+}
+
+#[cfg(feature = "redis-backend")]
+#[async_trait]
+impl PubSubStore for RedisPubSubStore {
+    async fn publish(&self, channel: &str, message: &[u8]) -> Result<()> {
+        let mut conn = self.conn.clone();
+        let () = redis::AsyncCommands::publish(&mut conn, channel, message).await?;
+        Ok(())
+    }
+
+    async fn subscribe(&self, channels: &[&str]) -> Result<tokio_stream::wrappers::BroadcastStream<Message>> {
+        use tokio_stream::StreamExt;
+
+        let channel_name = channels.first().copied().unwrap_or("default");
+        let (tx, rx) = {
+            let mut chans = self.channels.write().await;
+            if let Some(existing_tx) = chans.get(channel_name) {
+                (existing_tx.clone(), existing_tx.subscribe())
+            } else {
+                let (tx, rx) = broadcast::channel(1000);
+                chans.insert(channel_name.to_string(), tx.clone());
+
+                let client = self.client.clone();
+                let ch_str = channel_name.to_string();
+                let tx_clone = tx.clone();
+
+                tokio::spawn(async move {
+                    if let Ok(mut pubsub) = client.get_async_pubsub().await {
+                        if pubsub.subscribe(&ch_str).await.is_ok() {
+                            let mut msg_stream = pubsub.on_message();
+                            while let Some(msg) = msg_stream.next().await {
+                                let payload: Vec<u8> = msg.get_payload().unwrap_or_default();
+                                let m = Message {
+                                    channel: ch_str.clone(),
+                                    payload,
+                                    timestamp: chrono::Utc::now().timestamp(),
+                                };
+                                if tx_clone.send(m).is_err() {
+                                    // No active listeners left
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                });
+
+                (tx, rx)
+            }
+        };
+
+        let _ = tx;
+        Ok(tokio_stream::wrappers::BroadcastStream::new(rx))
+    }
+
+    async fn unsubscribe(&self, channels: &[&str]) -> Result<()> {
+        let mut chans = self.channels.write().await;
+        for &ch in channels {
+            chans.remove(ch);
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_memory_pubsub_store() {
+        use tokio_stream::StreamExt;
+
+        let store = MemoryPubSubStore::default();
+        let mut stream = store.subscribe(&["events"]).await.unwrap();
+
+        store.publish("events", b"test-payload").await.unwrap();
+
+        if let Some(Ok(msg)) = stream.next().await {
+            assert_eq!(msg.channel, "events");
+            assert_eq!(msg.payload, b"test-payload");
+        } else {
+            panic!("expected message from stream");
+        }
+    }
+}

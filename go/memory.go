@@ -170,6 +170,19 @@ func (m *memorySortedSet) RemoveRange(_ context.Context, set string, min, max fl
 	return count, nil
 }
 
+func (m *memorySortedSet) Score(_ context.Context, set string, member string) (*float64, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if members, ok := m.sets[set]; ok {
+		if score, ok := members[member]; ok {
+			s := score
+			return &s, nil
+		}
+	}
+	return nil, nil
+}
+
 // --- Pub/Sub Store ---
 
 type memoryPubSub struct {

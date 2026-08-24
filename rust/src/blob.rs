@@ -10,7 +10,9 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use std::time::Duration;
 
-#[derive(Clone, Debug, Default)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Metadata {
     pub content_type: Option<String>,
     pub custom: HashMap<String, String>,
@@ -77,5 +79,164 @@ impl BlobStore for MemoryBlobStore {
     async fn presign_url(&self, key: &str, _expiry: Duration) -> Result<String> {
         // In-memory implementation returns a mock URL
         Ok(format!("mock://blob-store/{}", key))
+    }
+}
+
+use std::path::{Path, PathBuf};
+
+/// Local filesystem implementation of BlobStore.
+#[derive(Clone)]
+pub struct LocalBlobStore {
+    base_path: PathBuf,
+}
+
+impl LocalBlobStore {
+    pub fn new<P: AsRef<Path>>(base_path: P) -> Self {
+        Self {
+            base_path: base_path.as_ref().to_path_buf(),
+        }
+    }
+
+    fn resolve_path(&self, key: &str) -> Result<PathBuf> {
+        // Simple security check against directory traversal
+        let clean_key = key.trim_start_matches('/').replace('\\', "/");
+        if clean_key.contains("..") {
+            anyhow::bail!("Invalid blob key: directory traversal detected");
+        }
+        Ok(self.base_path.join(clean_key))
+    }
+
+    fn meta_path(&self, blob_path: &Path) -> PathBuf {
+        let mut path_str = blob_path.as_os_str().to_os_string();
+        path_str.push(".meta.json");
+        PathBuf::from(path_str)
+    }
+}
+
+#[async_trait]
+impl BlobStore for LocalBlobStore {
+    async fn put(&self, key: &str, data: &[u8], metadata: Option<Metadata>) -> Result<()> {
+        let blob_path = self.resolve_path(key)?;
+        if let Some(parent) = blob_path.parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
+
+        tokio::fs::write(&blob_path, data).await?;
+
+        if let Some(meta) = metadata {
+            let meta_path = self.meta_path(&blob_path);
+            let meta_json = serde_json::to_vec(&meta)?;
+            tokio::fs::write(meta_path, meta_json).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn get(&self, key: &str) -> Result<Option<(Vec<u8>, Metadata)>> {
+        let blob_path = self.resolve_path(key)?;
+        if !blob_path.exists() {
+            return Ok(None);
+        }
+
+        let data = tokio::fs::read(&blob_path).await?;
+        let meta_path = self.meta_path(&blob_path);
+        let metadata = if meta_path.exists() {
+            let meta_bytes = tokio::fs::read(meta_path).await?;
+            serde_json::from_slice(&meta_bytes).unwrap_or_default()
+        } else {
+            Metadata::default()
+        };
+
+        Ok(Some((data, metadata)))
+    }
+
+    async fn delete(&self, key: &str) -> Result<()> {
+        let blob_path = self.resolve_path(key)?;
+        if blob_path.exists() {
+            let _ = tokio::fs::remove_file(&blob_path).await;
+        }
+        let meta_path = self.meta_path(&blob_path);
+        if meta_path.exists() {
+            let _ = tokio::fs::remove_file(meta_path).await;
+        }
+        Ok(())
+    }
+
+    async fn list(&self, prefix: Option<&str>) -> Result<Vec<String>> {
+        if !self.base_path.exists() {
+            return Ok(Vec::new());
+        }
+
+        let mut results = Vec::new();
+        let mut dirs_to_visit = vec![self.base_path.clone()];
+
+        while let Some(dir) = dirs_to_visit.pop() {
+            let mut entries = tokio::fs::read_dir(dir).await?;
+            while let Some(entry) = entries.next_entry().await? {
+                let path = entry.path();
+                if path.is_dir() {
+                    dirs_to_visit.push(path);
+                } else {
+                    let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                    if file_name.ends_with(".meta.json") {
+                        continue;
+                    }
+                    if let Ok(rel_path) = path.strip_prefix(&self.base_path) {
+                        let rel_str = rel_path.to_string_lossy().replace('\\', "/");
+                        if let Some(pref) = prefix {
+                            if rel_str.starts_with(pref) {
+                                results.push(rel_str);
+                            }
+                        } else {
+                            results.push(rel_str);
+                        }
+                    }
+                }
+            }
+        }
+
+        results.sort();
+        Ok(results)
+    }
+
+    async fn presign_url(&self, key: &str, _expiry: Duration) -> Result<String> {
+        let blob_path = self.resolve_path(key)?;
+        let abs_path = std::fs::canonicalize(&blob_path).unwrap_or(blob_path);
+        Ok(format!("file://{}", abs_path.to_string_lossy()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_local_blob_store() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let store = LocalBlobStore::new(temp_dir.path());
+
+        let mut custom = HashMap::new();
+        custom.insert("author".to_string(), "goy".to_string());
+        let meta = Metadata {
+            content_type: Some("text/plain".to_string()),
+            custom,
+        };
+
+        // Put
+        store.put("certs/node.crt", b"CERT_DATA", Some(meta)).await.unwrap();
+
+        // Get
+        let (data, retrieved_meta) = store.get("certs/node.crt").await.unwrap().unwrap();
+        assert_eq!(data, b"CERT_DATA");
+        assert_eq!(retrieved_meta.content_type.as_deref(), Some("text/plain"));
+        assert_eq!(retrieved_meta.custom.get("author").map(|s| s.as_str()), Some("goy"));
+
+        // List
+        let list = store.list(Some("certs/")).await.unwrap();
+        assert_eq!(list, vec!["certs/node.crt".to_string()]);
+
+        // Delete
+        store.delete("certs/node.crt").await.unwrap();
+        assert!(store.get("certs/node.crt").await.unwrap().is_none());
     }
 }

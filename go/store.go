@@ -64,6 +64,7 @@ type SortedSetStore interface {
 	RangeByScore(ctx context.Context, set string, min, max float64, limit *int) ([]ScoredMember, error)
 	Count(ctx context.Context, set string) (int64, error)
 	RemoveRange(ctx context.Context, set string, min, max float64) (int64, error)
+	Score(ctx context.Context, set string, member string) (*float64, error)
 }
 
 // ScoredMember represents a member and its score in a sorted set.

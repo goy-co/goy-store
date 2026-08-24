@@ -3,6 +3,8 @@ package goystore
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -86,4 +88,207 @@ func (r *RedisKVStore) SetIfNotExists(ctx context.Context, key string, value []b
 		expiration = *ttl
 	}
 	return r.client.SetNX(ctx, key, value, expiration).Result()
+}
+
+// Client returns the underlying redis.UniversalClient for connection sharing.
+func (r *RedisKVStore) Client() redis.UniversalClient {
+	return r.client
+}
+
+// RedisSortedSetStore implements the SortedSetStore contract using Redis.
+type RedisSortedSetStore struct {
+	client redis.UniversalClient
+}
+
+// NewRedisSortedSetStore creates a new RedisSortedSetStore from SortedSetConfig.
+func NewRedisSortedSetStore(cfg SortedSetConfig) (*RedisSortedSetStore, error) {
+	url := cfg.URL
+	if url == "" {
+		url = "redis://127.0.0.1:6379"
+	}
+
+	opt, err := redis.ParseURL(url)
+	if err != nil {
+		return nil, err
+	}
+
+	client := redis.NewClient(opt)
+	return &RedisSortedSetStore{client: client}, nil
+}
+
+// NewRedisSortedSetStoreWithClient creates a RedisSortedSetStore with a shared UniversalClient.
+func NewRedisSortedSetStoreWithClient(client redis.UniversalClient) *RedisSortedSetStore {
+	return &RedisSortedSetStore{client: client}
+}
+
+// Client returns the underlying redis.UniversalClient.
+func (s *RedisSortedSetStore) Client() redis.UniversalClient {
+	return s.client
+}
+
+// Add adds a member with a score to the sorted set.
+func (s *RedisSortedSetStore) Add(ctx context.Context, set string, member string, score float64) error {
+	return s.client.ZAdd(ctx, set, redis.Z{
+		Score:  score,
+		Member: member,
+	}).Err()
+}
+
+// Remove removes a member from the sorted set.
+func (s *RedisSortedSetStore) Remove(ctx context.Context, set string, member string) error {
+	return s.client.ZRem(ctx, set, member).Err()
+}
+
+// RangeByScore retrieves members ordered by score within the [min, max] range.
+func (s *RedisSortedSetStore) RangeByScore(ctx context.Context, set string, min, max float64, limit *int) ([]ScoredMember, error) {
+	opt := &redis.ZRangeBy{
+		Min: fmt.Sprintf("%f", min),
+		Max: fmt.Sprintf("%f", max),
+	}
+	if limit != nil {
+		opt.Offset = 0
+		opt.Count = int64(*limit)
+	}
+
+	zs, err := s.client.ZRangeByScoreWithScores(ctx, set, opt).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	members := make([]ScoredMember, len(zs))
+	for i, z := range zs {
+		memberStr, ok := z.Member.(string)
+		if !ok {
+			memberStr = fmt.Sprintf("%v", z.Member)
+		}
+		members[i] = ScoredMember{
+			Member: memberStr,
+			Score:  z.Score,
+		}
+	}
+	return members, nil
+}
+
+// Count returns the number of elements in the sorted set.
+func (s *RedisSortedSetStore) Count(ctx context.Context, set string) (int64, error) {
+	return s.client.ZCard(ctx, set).Result()
+}
+
+// RemoveRange removes all members with scores in the range [min, max].
+func (s *RedisSortedSetStore) RemoveRange(ctx context.Context, set string, min, max float64) (int64, error) {
+	return s.client.ZRemRangeByScore(ctx, set, fmt.Sprintf("%f", min), fmt.Sprintf("%f", max)).Result()
+}
+
+// Score returns the score of the specified member in the sorted set, or nil if not found.
+func (s *RedisSortedSetStore) Score(ctx context.Context, set string, member string) (*float64, error) {
+	score, err := s.client.ZScore(ctx, set, member).Result()
+	if errors.Is(err, redis.Nil) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &score, nil
+}
+
+// RedisPubSubStore implements the PubSubStore contract using Redis.
+type RedisPubSubStore struct {
+	client redis.UniversalClient
+	mu     sync.Mutex
+	subs   map[string][]*redis.PubSub
+}
+
+// NewRedisPubSubStore creates a new RedisPubSubStore from PubSubConfig.
+func NewRedisPubSubStore(cfg PubSubConfig) (*RedisPubSubStore, error) {
+	url := cfg.URL
+	if url == "" {
+		url = "redis://127.0.0.1:6379"
+	}
+
+	opt, err := redis.ParseURL(url)
+	if err != nil {
+		return nil, err
+	}
+
+	client := redis.NewClient(opt)
+	return &RedisPubSubStore{
+		client: client,
+		subs:   make(map[string][]*redis.PubSub),
+	}, nil
+}
+
+// NewRedisPubSubStoreWithClient creates a RedisPubSubStore with a shared UniversalClient.
+func NewRedisPubSubStoreWithClient(client redis.UniversalClient) *RedisPubSubStore {
+	return &RedisPubSubStore{
+		client: client,
+		subs:   make(map[string][]*redis.PubSub),
+	}
+}
+
+// Publish sends a message to a channel.
+func (p *RedisPubSubStore) Publish(ctx context.Context, channel string, message []byte) error {
+	return p.client.Publish(ctx, channel, message).Err()
+}
+
+// Subscribe subscribes to channels and returns a buffered receive-only channel.
+func (p *RedisPubSubStore) Subscribe(ctx context.Context, channels []string) (<-chan Message, error) {
+	if len(channels) == 0 {
+		return nil, fmt.Errorf("no channels provided for subscription")
+	}
+
+	pubsub := p.client.Subscribe(ctx, channels...)
+	// Confirm subscription
+	_, err := pubsub.Receive(ctx)
+	if err != nil {
+		_ = pubsub.Close()
+		return nil, fmt.Errorf("failed to initialize subscription: %w", err)
+	}
+
+	p.mu.Lock()
+	for _, ch := range channels {
+		p.subs[ch] = append(p.subs[ch], pubsub)
+	}
+	p.mu.Unlock()
+
+	out := make(chan Message, 1000)
+	ch := pubsub.Channel()
+
+	go func() {
+		defer close(out)
+		for {
+			select {
+			case <-ctx.Done():
+				_ = pubsub.Close()
+				return
+			case msg, ok := <-ch:
+				if !ok {
+					return
+				}
+				out <- Message{
+					Channel:   msg.Channel,
+					Payload:   []byte(msg.Payload),
+					Timestamp: time.Now(),
+				}
+			}
+		}
+	}()
+
+	return out, nil
+}
+
+// Unsubscribe cancels subscriptions on the given channels.
+func (p *RedisPubSubStore) Unsubscribe(ctx context.Context, channels []string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	for _, ch := range channels {
+		if subsList, ok := p.subs[ch]; ok {
+			for _, sub := range subsList {
+				_ = sub.Unsubscribe(ctx, ch)
+				_ = sub.Close()
+			}
+			delete(p.subs, ch)
+		}
+	}
+	return nil
 }
