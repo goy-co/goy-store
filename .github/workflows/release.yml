@@ -149,13 +149,14 @@ jobs:
             echo "is_prerelease=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Generate Release Changelog with git-cliff
-        uses: orhun/git-cliff-action@v3
+      - name: Install git-cliff
+        uses: taiki-e/install-action@v2
         with:
-          config: cliff.toml
-          args: --latest --strip header
-        env:
-          OUTPUT: RELEASE_CHANGELOG.md
+          tool: git-cliff
+
+      - name: Generate Release Changelog with git-cliff
+        run: |
+          git-cliff --config cliff.toml --latest --strip header --output RELEASE_CHANGELOG.md
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
