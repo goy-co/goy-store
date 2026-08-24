@@ -26,7 +26,7 @@ pub trait SortedSetStore: Send + Sync {
     async fn is_healthy(&self) -> Result<crate::health::HealthStatus>;
 }
 
-#[derive(Default, Debug, Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Default, Debug, Clone, Copy, PartialEq)]
 struct OrderedScore(f64);
 
 impl Eq for OrderedScore {}
@@ -34,6 +34,12 @@ impl Eq for OrderedScore {}
 impl Ord for OrderedScore {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.0.total_cmp(&other.0)
+    }
+}
+
+impl PartialOrd for OrderedScore {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -59,13 +65,13 @@ impl SortedSetStore for MemorySortedSetStore {
         let ord_score = OrderedScore(score);
 
         // Remove old score if member already exists
-        if let Some(old_score) = inner.member_scores.get(member) {
-            if let Some(members) = inner.scores.get_mut(old_score) {
-                members.retain(|m| m != member);
-                if members.is_empty() {
-                    let old = *old_score;
-                    inner.scores.remove(&old);
-                }
+        if let Some(old_score) = inner.member_scores.get(member)
+            && let Some(members) = inner.scores.get_mut(old_score)
+        {
+            members.retain(|m| m != member);
+            if members.is_empty() {
+                let old = *old_score;
+                inner.scores.remove(&old);
             }
         }
 
@@ -81,14 +87,13 @@ impl SortedSetStore for MemorySortedSetStore {
 
     async fn remove(&self, set: &str, member: &str) -> Result<()> {
         let mut sets = self.sets.write().await;
-        if let Some(inner) = sets.get_mut(set) {
-            if let Some(score) = inner.member_scores.remove(member) {
-                if let Some(members) = inner.scores.get_mut(&score) {
-                    members.retain(|m| m != member);
-                    if members.is_empty() {
-                        inner.scores.remove(&score);
-                    }
-                }
+        if let Some(inner) = sets.get_mut(set)
+            && let Some(score) = inner.member_scores.remove(member)
+            && let Some(members) = inner.scores.get_mut(&score)
+        {
+            members.retain(|m| m != member);
+            if members.is_empty() {
+                inner.scores.remove(&score);
             }
         }
         Ok(())
@@ -108,10 +113,10 @@ impl SortedSetStore for MemorySortedSetStore {
             for (&score, members) in inner.scores.range(OrderedScore(min)..=OrderedScore(max)) {
                 for member in members {
                     result.push((member.clone(), score.0));
-                    if let Some(limit) = limit {
-                        if result.len() >= limit {
-                            return Ok(result);
-                        }
+                    if let Some(limit) = limit
+                        && result.len() >= limit
+                    {
+                        return Ok(result);
                     }
                 }
             }

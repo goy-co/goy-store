@@ -48,11 +48,11 @@ impl CircuitBreaker {
             CircuitState::Closed => Ok(()),
             CircuitState::Open => {
                 let last_time = self.last_failure_time.read().await;
-                if let Some(instant) = *last_time {
-                    if instant.elapsed() >= self.reset_timeout {
-                        *state_guard = CircuitState::HalfOpen;
-                        return Ok(());
-                    }
+                if let Some(instant) = *last_time
+                    && instant.elapsed() >= self.reset_timeout
+                {
+                    *state_guard = CircuitState::HalfOpen;
+                    return Ok(());
                 }
                 Err(anyhow!("Circuit breaker is OPEN"))
             }

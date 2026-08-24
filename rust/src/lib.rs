@@ -152,7 +152,7 @@ impl GoyStore {
                     .unwrap_or("postgres://postgres:postgres@127.0.0.1:5432/goy");
                 Arc::new(relational::PostgresRelationalStore::new(url).await?)
             }
-            _ => Arc::new(relational::MemoryRelationalStore::default()),
+            _ => Arc::new(relational::MemoryRelationalStore),
         };
         let relational_instrumented = Arc::new(metrics::InstrumentedRelationalStore::new(
             relational_raw,

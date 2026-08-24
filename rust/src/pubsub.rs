@@ -143,20 +143,20 @@ impl PubSubStore for RedisPubSubStore {
                 let tx_clone = tx.clone();
 
                 tokio::spawn(async move {
-                    if let Ok(mut pubsub) = client.get_async_pubsub().await {
-                        if pubsub.subscribe(&ch_str).await.is_ok() {
-                            let mut msg_stream = pubsub.on_message();
-                            while let Some(msg) = msg_stream.next().await {
-                                let payload: Vec<u8> = msg.get_payload().unwrap_or_default();
-                                let m = Message {
-                                    channel: ch_str.clone(),
-                                    payload,
-                                    timestamp: chrono::Utc::now().timestamp(),
-                                };
-                                if tx_clone.send(m).is_err() {
-                                    // No active listeners left
-                                    break;
-                                }
+                    if let Ok(mut pubsub) = client.get_async_pubsub().await
+                        && pubsub.subscribe(&ch_str).await.is_ok()
+                    {
+                        let mut msg_stream = pubsub.on_message();
+                        while let Some(msg) = msg_stream.next().await {
+                            let payload: Vec<u8> = msg.get_payload().unwrap_or_default();
+                            let m = Message {
+                                channel: ch_str.clone(),
+                                payload,
+                                timestamp: chrono::Utc::now().timestamp(),
+                            };
+                            if tx_clone.send(m).is_err() {
+                                // No active listeners left
+                                break;
                             }
                         }
                     }

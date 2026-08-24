@@ -66,6 +66,11 @@ func NewS3BlobStore(ctx context.Context, cfg BlobConfig) (*S3BlobStore, error) {
 	}, nil
 }
 
+// Client returns the underlying *s3.Client.
+func (s *S3BlobStore) Client() *s3.Client {
+	return s.client
+}
+
 // Put writes an object to S3 with optional metadata.
 func (s *S3BlobStore) Put(ctx context.Context, key string, data []byte, metadata *Metadata) error {
 	input := &s3.PutObjectInput{

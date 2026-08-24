@@ -141,5 +141,10 @@ func setupMinIOBucket(t *testing.T) *goystore.S3BlobStore {
 		t.Fatalf("failed to create s3 blob store: %v", err)
 	}
 
+	// Ensure bucket exists
+	_, _ = store.Client().CreateBucket(context.Background(), &s3.CreateBucketInput{
+		Bucket: aws.String(getMinIOBucket()),
+	})
+
 	return store
 }
