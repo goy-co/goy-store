@@ -20,6 +20,9 @@ Goy Store defines five fundamental contracts, each mappable to multiple backends
 - **Rust Crate**: `goy-store` for Rust consumers (e.g., Goy Node, Goy VPN).
 - **Go Package**: `goy-store` for Go consumers (e.g., Goy Relay).
 - **Backend Agnostic**: Swap backends via TOML configuration without changing application code.
+- **Observability**: Built-in Prometheus metrics per contract, operation, and backend.
+- **Resilience**: Configurable exponential backoff retry with jitter and circuit breaker protection.
+- **Health Checks**: Standardized, non-blocking health checks and consolidated status reporting.
 
 ## Getting Started
 
@@ -27,7 +30,7 @@ Goy Store defines five fundamental contracts, each mappable to multiple backends
 
 ```toml
 [dependencies]
-goy-store = { path = "../goy-store/rust" }
+goy-store = { path = "../goy-store/rust", features = ["all-backends"] }
 ```
 
 ### Go
@@ -45,6 +48,33 @@ import "github.com/goy-co/goy-store/go"
 | Sorted Set | Redis, PostgreSQL, SQLite | In-Memory |
 | Pub/Sub | NATS, Redis Pub/Sub, PostgreSQL LISTEN | In-Memory |
 | Blob | S3, R2, MinIO | Filesystem, In-Memory |
+
+## Testing
+
+### Unit Tests
+
+```bash
+make test
+```
+
+### Standalone E2E Integration Tests
+
+The test suite runs against real Redis, PostgreSQL, and MinIO instances using Docker Compose:
+
+```bash
+# Run all E2E tests (starts infrastructure, runs Rust and Go tests, tears down)
+make test-e2e
+
+# Or start the test infrastructure manually:
+make e2e-up
+
+# Run individual test suites:
+make test-e2e-rust
+make test-e2e-go
+
+# Tear down infrastructure:
+make e2e-down
+```
 
 ## Documentation
 

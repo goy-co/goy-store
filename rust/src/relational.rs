@@ -99,9 +99,18 @@ impl RelationalStore for PostgresRelationalStore {
         for row in rows {
             let mut row_data = Vec::new();
             for i in 0..result_columns.len() {
-                // Fetch raw bytes or string representation
-                let val: Option<Vec<u8>> = row.try_get(i).ok();
-                row_data.push(val.unwrap_or_default());
+                // Try fetching as string, raw bytes, or integer and serialize as bytes
+                if let Ok(s) = row.try_get::<String, _>(i) {
+                    row_data.push(s.into_bytes());
+                } else if let Ok(bytes) = row.try_get::<Vec<u8>, _>(i) {
+                    row_data.push(bytes);
+                } else if let Ok(num) = row.try_get::<i32, _>(i) {
+                    row_data.push(num.to_string().into_bytes());
+                } else if let Ok(num) = row.try_get::<i64, _>(i) {
+                    row_data.push(num.to_string().into_bytes());
+                } else {
+                    row_data.push(Vec::new());
+                }
             }
             result_rows.push(row_data);
         }

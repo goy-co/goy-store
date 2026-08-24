@@ -6,6 +6,7 @@ authors = ["The Goy Company"]
 description = "Unified persistence abstraction for the Goy Platform"
 license = "Proprietary"
 repository = "https://github.com/goy-co/goy-store"
+autotests = false
 
 [lib]
 name = "goy_store"
@@ -59,3 +60,8 @@ all-backends = ["redis-backend", "sqlx-backend", "s3-backend", "nats-backend"]
 [dev-dependencies]
 tokio-test = "0.4"
 tempfile = "3"
+
+[[test]]
+name = "e2e"
+path = "tests/e2e_tests.rs"
+required-features = ["all-backends"]
