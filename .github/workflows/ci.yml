@@ -45,11 +45,11 @@ jobs:
           - 9000:9000
           - 9001:9001
         options: >-
+          server /data --console-address ":9001"
           --health-cmd "mc ready local"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 5
-        args: server /data --console-address ":9001"
 
     steps:
       - uses: actions/checkout@v4
@@ -121,11 +121,11 @@ jobs:
           - 9000:9000
           - 9001:9001
         options: >-
+          server /data --console-address ":9001"
           --health-cmd "mc ready local"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 5
-        args: server /data --console-address ":9001"
 
     steps:
       - uses: actions/checkout@v4
