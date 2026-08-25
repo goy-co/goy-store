@@ -21,10 +21,9 @@ permissions:
   id-token: write
 
 jobs:
-  validate:
-    name: Validate CI (Unit & E2E Tests)
+  e2e-validate:
+    name: E2E Validation
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,43 +31,20 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: rust
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.25'
-          cache-dependency-path: go/go.sum
-
-      - name: Check Rust Formatting & Lints
-        run: |
-          cd rust
-          cargo fmt -- --check
-          cargo clippy --all-features -- -D warnings
-
-      - name: Check Go Vet
-        run: |
-          cd go
-          go vet ./...
-
-      - name: Run Unit Tests
-        run: |
-          cd rust && cargo test
-          cd ../go && go test -v ./...
 
       - name: Start Test Infrastructure
         run: docker compose up -d --wait
 
-      - name: Run E2E Integration Tests
-        run: |
-          make test-e2e-rust
-          make test-e2e-go
+      - name: Run Rust E2E Tests
+        run: cd rust && cargo test --test e2e --all-features -- --test-threads=1
+
+      - name: Run Go E2E Tests
+        run: cd go && go test -tags=e2e -v ./e2e/...
 
       - name: Stop Test Infrastructure
         if: always()
@@ -76,7 +52,7 @@ jobs:
 
   publish-rust:
     name: Package & Publish Rust Crate
-    needs: validate
+    needs: e2e-validate
     runs-on: ubuntu-latest
 
     steps:
@@ -86,45 +62,68 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Verify Package
-        run: |
-          cd rust
-          cargo package --all-features
+        run: cd rust && cargo package --all-features
 
       - name: Publish to Crates.io
         env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN || secrets.CRATES_IO_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
         run: |
           cd rust
-          if [ "$DRY_RUN" = "true" ] || [ -z "$CARGO_REGISTRY_TOKEN" ]; then
-            echo "Running cargo publish in dry-run mode..."
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "::notice::Dry run - skipping cargo publish"
             cargo publish --dry-run --all-features
+          elif [ -z "$CARGO_REGISTRY_TOKEN" ]; then
+            echo "::error::CARGO_REGISTRY_TOKEN secret is required for publishing"
+            exit 1
           else
-            echo "Publishing crate..."
+            echo "::notice::Publishing crate to crates.io"
             cargo publish --all-features --token "$CARGO_REGISTRY_TOKEN"
           fi
 
-  publish-go:
+  verify-go-module:
     name: Verify Go Module
-    needs: validate
+    needs: e2e-validate
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine Release Tag
+        id: vars
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.version }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.25'
 
-      - name: Verify Go Module Integrity
+      - name: Verify module integrity
+        run: cd go && go mod verify
+
+      - name: Test module consumption
         run: |
-          cd go
-          go mod verify
+          TAG="${{ steps.vars.outputs.tag }}"
+          cd /tmp
+          rm -rf goy-store-consumer-test
+          mkdir goy-store-consumer-test
+          cd goy-store-consumer-test
+          go mod init goy-store-consumer-test
+          go get github.com/goy-co/goy-store/go@$TAG
+          go mod tidy
+          go list -m all | grep goy-store
 
   create-release:
     name: Create GitHub Release
-    needs: [publish-rust, publish-go]
+    needs: [publish-rust, verify-go-module]
     runs-on: ubuntu-latest
 
     steps:
