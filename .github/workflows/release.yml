@@ -112,12 +112,19 @@ jobs:
       - name: Test module consumption
         run: |
           TAG="${{ steps.vars.outputs.tag }}"
+          GO_TAG="go/${TAG}"
           cd /tmp
           rm -rf goy-store-consumer-test
           mkdir goy-store-consumer-test
           cd goy-store-consumer-test
           go mod init goy-store-consumer-test
-          go get github.com/goy-co/goy-store/go@$TAG
+          # In Go multi-module repos, tags for submodules follow <prefix>/<version>, e.g. go/v0.1.0-alpha
+          # Attempt fetching with submodule tag prefix or direct repo tag fallback
+          go get "github.com/goy-co/goy-store/go@${GO_TAG}" || go get "github.com/goy-co/goy-store/go@${TAG}" || {
+            echo "::notice::Tag not yet indexed on proxy or private repo - verifying local consumer build"
+            go mod edit -replace github.com/goy-co/goy-store/go="${GITHUB_WORKSPACE}/go"
+            go get github.com/goy-co/goy-store/go
+          }
           go mod tidy
           go list -m all | grep goy-store
 

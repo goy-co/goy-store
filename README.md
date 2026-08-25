@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/goy-co/goy-store/actions/workflows/ci.yml/badge.svg)](https://github.com/goy-co/goy-store/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/badge/release-v0.1.0--alpha-blue.svg)](https://github.com/goy-co/goy-store/releases)
-[![License](https://img.shields.io/badge/license-Proprietary-red.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Goy%20Source%20Available%20License-blue.svg)](LICENSE)
 
 **Unified Persistence Abstraction** for the Goy Platform.
 
