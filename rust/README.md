@@ -29,7 +29,7 @@ Add `goy-store` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-goy-store = { version = "0.1.0", features = ["all-backends"] }
+goy-store = { version = "0.1.1-alpha", features = ["all-backends"] }
 ```
 
 ### Feature Flags

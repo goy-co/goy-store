@@ -1,6 +1,6 @@
 [package]
 name = "goy-store"
-version = "0.1.0"
+version = "0.1.1-alpha"
 edition = "2024"
 authors = ["The Goy Company"]
 description = "Unified persistence abstraction for the Goy Platform"
