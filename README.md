@@ -1,6 +1,8 @@
 # Goy Store
 
 [![CI](https://github.com/goy-co/goy-store/actions/workflows/ci.yml/badge.svg)](https://github.com/goy-co/goy-store/actions/workflows/ci.yml)
+[![Crates.io](https://img.shields.io/crates/v/goy-store.svg)](https://crates.io/crates/goy-store)
+[![Go Reference](https://pkg.go.dev/badge/github.com/goy-co/goy-store/go.svg)](https://pkg.go.dev/github.com/goy-co/goy-store/go)
 [![Release](https://img.shields.io/badge/release-v0.1.0--alpha-blue.svg)](https://github.com/goy-co/goy-store/releases)
 [![License](https://img.shields.io/badge/license-Goy%20Source%20Available%20License-blue.svg)](LICENSE)
 
