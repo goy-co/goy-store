@@ -62,7 +62,7 @@ We will coordinate with you on the timing and content of any public disclosure, 
 
 ### 5. Hall of Fame
 
-We maintain a public **Security Hall of Fame** at [goy.company/security/hall-of-fame](https://goy.company/security/hall-of-fame) (or equivalent URL). Researchers who report valid vulnerabilities may be recognized with:
+We maintain a public **Security Hall of Fame** at [goycompany.com/security/hall-of-fame](https://goycompany.com/security/hall-of-fame) (or equivalent URL). Researchers who report valid vulnerabilities may be recognized with:
 - Name or handle (at your choice)
 - Date of discovery
 - Brief description of the vulnerability (with your consent)

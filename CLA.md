@@ -85,4 +85,4 @@ By submitting a Contribution to a Goy Repository, You acknowledge that You have 
 ---
 
 **The Goy Company**
-legal@goy.company
+legal@goycompany.com
