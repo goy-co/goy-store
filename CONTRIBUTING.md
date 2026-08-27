@@ -131,23 +131,7 @@ make e2e-down
 
 ## Code of Conduct
 
-### Our Standards
-
-- Be respectful and constructive in all interactions
-- Focus on the technical merits of contributions, not the person making them
-- Accept constructive criticism gracefully
-- Help others learn and grow
-
-### Unacceptable Behavior
-
-- Harassment, discrimination, or exclusionary language
-- Trolling, insulting/derogatory comments, and personal attacks
-- Public or private harassment
-- Publishing others' private information without permission
-
-### Enforcement
-
-Violations of the code of conduct may result in removal from the project. If you witness or experience unacceptable behavior, contact us at legal@goycompany.com.
+All contributors are expected to adhere to our **[Code of Conduct](CODE_OF_CONDUCT.md)**. By participating in this project, you agree to abide by its terms. Please read it before contributing.
 
 ---
 
