@@ -1,14 +1,107 @@
-Goy Source Available License (GSAL)
+Goy Source Available License (GSAL) v2.0
 
 Copyright © 2024-2026 The Goy Company. All rights reserved.
 
-This software and associated documentation files (the "Software") are provided under a source-available terms model for public inspection and trust verification purposes only.
+Preamble
 
-TERMS AND CONDITIONS:
+The Goy Company builds products that handle sensitive data and infrastructure. Trust is the foundation of our relationship with our users. This license exists to make that trust verifiable: you can see exactly what code runs beneath every Goy product, audit it, and confirm our claims about its behavior. You cannot run it, modify it, or build on it — this is a managed solution, and the code is published for transparency, not for reuse.
 
-1. View-Only Permission: Permission is hereby granted to any person obtaining a copy of the Software solely to view, inspect, and audit the source code.
-2. Prohibited Uses: You may NOT copy, modify, merge, publish, distribute, sublicense, sell, perform, or contribute to copies of the Software, in whole or in part, for commercial or non-commercial purposes.
-3. No Redistribution / Contributions: External contributions, forks, pull requests, redistribution, or derivative works are strictly prohibited unless authorized under a separate explicit written agreement with The Goy Company.
-4. Attribution: The above copyright notice and this permission notice shall be retained in all copies or viewings of the Software.
+This is not an open-source license. It does not grant the rights associated with free or open-source software. It is a source-available license designed to maximize auditability while preserving The Goy Company's exclusive right to deploy, modify, and commercialize the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+1. Definitions
+
+"Software" means the source code, documentation, configuration files, and associated materials made available under this license, including all future versions, updates, patches, and releases published by The Goy Company.
+
+"You" means any natural or legal person who accesses, views, or audits the Software under this license.
+
+"Deploy" means to execute, run, operate, or make the Software available as a service, whether for production, staging, testing, or any other purpose, whether internally or externally.
+
+"Audit" means to inspect, review, analyze, test, or perform security research on the Software for the purpose of verifying its behavior, security properties, or compliance with stated claims.
+
+"Contribution" means any source code, documentation, or other material submitted to The Goy Company for inclusion in the Software.
+
+"Trademarks" means the names, logos, and brand identifiers of The Goy Company, including but not limited to "Goy," "The Goy Company," and associated marks.
+
+2. Permissions Granted
+
+Subject to the terms of this license, The Goy Company grants you a worldwide, royalty-free, non-exclusive, non-transferable, non-sublicensable license to:
+
+(a) View and inspect the Software in source code form;
+(b) Audit the Software, including by performing static analysis, dynamic analysis, security testing, vulnerability research, and verification of stated behavioral claims;
+(c) Publish the results of your audit, provided that such publication does not include the full or substantial portion of the Software itself and does not enable others to reconstruct the Software;
+(d) Use the Software as reference material for academic research, educational purposes, or personal study, provided such use does not involve Deployment.
+
+3. Security Research
+
+Notwithstanding the restrictions in Section 4, you may conduct security research on the Software, including but not limited to vulnerability discovery, penetration testing, and responsible disclosure, provided that:
+
+(a) You comply with all applicable laws and regulations in your jurisdiction;
+(b) You do not compromise the security, availability, or integrity of any production system operated by The Goy Company or its users;
+(c) You disclose any discovered vulnerabilities to The Goy Company through a responsible disclosure process before public disclosure, where such a process is published by The Goy Company.
+
+The Goy Company will not initiate legal action against you for good-faith security research conducted in accordance with this section.
+
+4. Restrictions
+
+You may NOT:
+
+(a) Deploy the Software, in whole or in part, in any environment, whether local, cloud, containerized, virtualized, or otherwise;
+(b) Modify, adapt, translate, or create derivative works based on the Software;
+(c) Copy, reproduce, or redistribute the Software, in whole or in part, except as reasonably necessary for personal backup of your own viewing copy;
+(d) Sublicense, sell, lease, rent, lend, or otherwise transfer the Software or any rights therein to any third party;
+(e) Use the Software, in whole or in part, for any commercial purpose, including but not limited to offering it as a managed service, embedding it in a product, or using it to compete with The Goy Company;
+(f) Remove, alter, or obscure any copyright notices, license terms, or proprietary legends contained in the Software;
+(g) Use the Software in any manner that violates applicable law or regulation.
+
+5. Contributions
+
+The Goy Company may, at its sole discretion, accept Contributions to the Software. Any Contribution is subject to a separate Contributor License Agreement (CLA) executed between the contributor and The Goy Company. Unless a CLA is in place, no Contribution will be accepted or merged into the Software. The terms of the CLA will be made available separately and may require the contributor to assign or license their intellectual property rights to The Goy Company.
+
+6. Patent Grant
+
+The Goy Company grants you a non-exclusive, worldwide, royalty-free patent license under The Goy Company's necessarily infringed patent claims to view and audit the Software as permitted in Section 2. This patent grant does not extend to any use beyond viewing and auditing, including but not limited to Deployment, modification, or commercial exploitation.
+
+This patent grant terminates automatically if you initiate a patent infringement claim against The Goy Company or any user of the Software alleging that the Software or any portion thereof infringes your patent.
+
+7. Trademarks
+
+You may use The Goy Company's Trademarks solely for the purpose of truthful, nominative reference — for example, stating that you "use Goy products" or "audited the Goy source code." You may not:
+
+(a) Use the Trademarks in any manner that implies endorsement, sponsorship, or affiliation with The Goy Company;
+(b) Use the Trademarks as part of your own product name, service name, or domain name;
+(c) Use the Trademarks in a manner that is misleading, defamatory, or harmful to The Goy Company's reputation.
+
+All rights in the Trademarks not expressly granted herein are reserved by The Goy Company.
+
+8. Future Versions
+
+This license applies to the Software as published on the date you first access it, and to all future versions, updates, patches, and releases of the Software published by The Goy Company, unless The Goy Company explicitly states that a future version is governed by a different license. You are not required to update your viewing copy, but any new version you access will be governed by the license terms published alongside that version.
+
+9. Termination
+
+This license is effective until terminated. It terminates automatically and without notice if you breach any term of this license. Upon termination, you must cease all use of the Software and destroy all copies in your possession.
+
+The following provisions survive termination: Section 4 (Restrictions), Section 6 (Patent Grant, to the extent of claims arising before termination), Section 7 (Trademarks), Section 10 (Warranty Disclaimer), Section 11 (Limitation of Liability), and Section 12 (Governing Law).
+
+10. Warranty Disclaimer
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT. THE GOY COMPANY DOES NOT WARRANT THAT THE SOFTWARE IS ERROR-FREE, SECURE, OR SUITABLE FOR ANY PARTICULAR PURPOSE. YOU ASSUME ALL RISK ASSOCIATED WITH YOUR AUDIT AND USE OF THE SOFTWARE.
+
+11. Limitation of Liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL THE GOY COMPANY, ITS DIRECTORS, OFFICERS, EMPLOYEES, AGENTS, OR AFFILIATES BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING BUT NOT LIMITED TO LOSS OF PROFITS, DATA, OR BUSINESS OPPORTUNITY, ARISING OUT OF OR IN CONNECTION WITH THIS LICENSE OR THE SOFTWARE, WHETHER IN CONTRACT, TORT, OR OTHERWISE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+12. Governing Law
+
+This license shall be governed by and construed in accordance with the laws of Switzerland, without regard to its conflict of laws principles. Any dispute arising out of or in connection with this license shall be subject to the exclusive jurisdiction of the courts of Zurich, Switzerland.
+
+13. Miscellaneous
+
+(a) Severability: If any provision of this license is held to be invalid or unenforceable, the remaining provisions shall continue in full force and effect.
+(b) Entire Agreement: This license constitutes the entire agreement between you and The Goy Company regarding the Software and supersedes all prior agreements, whether written or oral.
+(c) No Waiver: The failure of The Goy Company to enforce any right or provision of this license shall not constitute a waiver of such right or provision.
+(d) Assignment: You may not assign or transfer this license or any rights hereunder without the prior written consent of The Goy Company. The Goy Company may assign this license without restriction.
+
+---
+
+For licensing inquiries, commercial partnerships, or to execute a Contributor License Agreement, contact: legal@goy.company
