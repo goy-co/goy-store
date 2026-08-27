@@ -87,3 +87,7 @@ Goy Source Available License (GSAL). See [LICENSE](LICENSE) for terms.
 ## 🤝 Contributing
 
 We welcome contributions. Please review our [Contributor License Agreement (CLA)](CLA.md) before submitting a pull request.
+
+## 🔒 Security
+
+If you discover a security vulnerability, please see our [Responsible Disclosure Policy](SECURITY.md). We appreciate your help in keeping Goy products safe.
