@@ -77,3 +77,7 @@ async fn main() -> anyhow::Result<()> {
 ## 📄 License
 
 Goy Source Available License (GSAL). See [LICENSE](LICENSE) for terms.
+
+## 🤝 Contributing
+
+We welcome contributions. Please review our [Contributor License Agreement (CLA)](CLA.md) before submitting a pull request.
